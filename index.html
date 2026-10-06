@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>เช็กน้ำท่วม</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F2A3D">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0F2A3D;--bg:#F1F6F8;--panel:#fff;--line:#D3DEE4;--mute:#5B6B76;--accent:#1B7A8C;
+--ok:#2F7D5B;--ok-bg:#DFF1E8;--watch:#9A6700;--watch-bg:#FFF1CC;--risk:#B8500A;--risk-bg:#FFE2CB;--danger:#B42318;--danger-bg:#FDDFDB;--unknown:#4B5A64;--unknown-bg:#E3EAEE}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--ink:#E8F1F5;--bg:#0B1A25;--panel:#12283A;--line:#244158;--mute:#9FB3C0;--accent:#5CC3D6;
+--ok:#7BD4A8;--ok-bg:#12382B;--watch:#F2C14E;--watch-bg:#3A2E0E;--risk:#FF9A57;--risk-bg:#40230F;--danger:#FF8A7E;--danger-bg:#431A16;--unknown:#B7C5CE;--unknown-bg:#1D3345}}
+*{box-sizing:border-box}
+html{height:100%}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font:400 1rem/1.6 "Noto Sans Thai",system-ui,sans-serif;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+main{max-width:34rem;margin:0 auto;padding:1.25rem 1rem 2rem}
+h1{font-size:1.5rem;font-weight:800;margin:0}
+h2{font-size:1rem;font-weight:600;margin:1.5rem 0 .25rem}
+#upd{margin:.1rem 0 1rem;color:var(--mute);font-size:.9rem}
+.note{padding:.75rem 1rem;border-radius:.5rem;margin-bottom:1rem;font-weight:600;background:var(--watch-bg);color:var(--watch);border:1px solid var(--watch)}
+.note.bad{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+label{display:block;font-weight:600;margin-bottom:.25rem}
+select{width:100%;font:inherit;padding:.75rem;border-radius:.5rem;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+select:focus-visible,a:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.card{margin:1rem 0;padding:1.25rem 1.25rem 1.25rem 1.5rem;border-radius:.75rem;border-left:.6rem solid var(--c);background:var(--b)}
+.card h2{margin:0;font-size:2rem;font-weight:800;line-height:1.2;color:var(--c)}
+.card p{margin:.4rem 0 0}
+.ok{--c:var(--ok);--b:var(--ok-bg)}.watch{--c:var(--watch);--b:var(--watch-bg)}.risk{--c:var(--risk);--b:var(--risk-bg)}.danger{--c:var(--danger);--b:var(--danger-bg)}.unknown{--c:var(--unknown);--b:var(--unknown-bg)}
+dl{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:.75rem}
+dl div{display:flex;justify-content:space-between;gap:1rem;padding:.7rem 1rem;border-top:1px solid var(--line)}
+dl div:first-child{border-top:0}
+dt{color:var(--mute)}dd{margin:0;font-weight:600;text-align:right}
+.help a{display:inline-block;margin:.25rem .5rem .25rem 0;padding:.5rem .9rem;border-radius:2rem;border:1px solid var(--accent);color:var(--accent);font-weight:600;text-decoration:none}
+.fine{font-size:.85rem;color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+<h1>เช็กน้ำท่วม</h1>
+<p id="upd">กำลังโหลดข้อมูล…</p>
+<div id="note" class="note" hidden></div>
+<label for="area">พื้นที่ของคุณ</label>
+<select id="area"></select>
+<section id="card" class="card unknown" aria-live="polite"></section>
+<dl id="rows"></dl>
+<section class="help">
+<h2>ขอความช่วยเหลือ</h2>
+<a href="tel:1784">ปภ. 1784</a><a href="tel:1669">การแพทย์ฉุกเฉิน 1669</a>
+<h2>ประกาศทางการ</h2>
+<a href="https://www.thaiwater.net">Thaiwater</a><a href="https://www.tmd.go.th">กรมอุตุนิยมวิทยา</a>
+<p class="fine">นี่คือการประเมินความเสี่ยงเบื้องต้นจากข้อมูลที่มี ไม่ใช่คำเตือนภัยทางการ และไม่รับประกันว่าพื้นที่ปลอดภัย หากอยู่ในสถานการณ์อันตราย ให้ทำตามคำสั่งเจ้าหน้าที่ก่อนเสมอ</p>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+// เกณฑ์เริ่มต้น (placeholder) — ต้องตรวจกับเกณฑ์ทางการก่อนเปิดใช้จริง
+const T={rain24:{watch:35,risk:90},rain48:{watch:50,risk:120},staleMin:180};
+const LV=[
+ {k:'ok',t:'ไม่พบสัญญาณเสี่ยง',d:'จากข้อมูลที่มีตอนนี้ สถานการณ์เปลี่ยนได้เร็ว ติดตามประกาศทางการต่อเนื่อง'},
+ {k:'watch',t:'เฝ้าระวัง',d:'ติดตามข่าวและเตรียมของจำเป็นไว้'},
+ {k:'risk',t:'เสี่ยง',d:'เตรียมของจำเป็นและวางแผนเส้นทางอพยพ'},
+ {k:'danger',t:'อันตราย',d:'ทำตามคำสั่งเจ้าหน้าที่และย้ายไปที่ปลอดภัย'}
+];
+let D=null;
+function note(t,bad){const n=$('note');n.textContent=t;n.className='note'+(bad?' bad':'');n.hidden=!t}
+function ageMin(){return (Date.now()-new Date(D.updated))/6e4}
+function assess(a){
+ if(!D.sample&&ageMin()>T.staleMin)return{s:-1,why:'ข้อมูลเก่าเกิน '+T.staleMin/60+' ชั่วโมง ยังประเมินไม่ได้'};
+ const hasLv=a.level_m!=null&&a.warn_m!=null&&a.crit_m!=null;
+ if(!hasLv&&a.rain24==null&&a.rain48==null)return{s:-1,why:'ยังไม่มีข้อมูลของพื้นที่นี้'};
+ let s=0;const w=[];
+ if(hasLv){
+  if(a.level_m>=a.crit_m){s=3;w.push('ระดับน้ำถึงระดับวิกฤต')}
+  else if(a.level_m>=a.warn_m){s=2;w.push('ระดับน้ำเกินระดับเตือนภัย');if(a.trend==='up'){s=3;w.push('และกำลังสูงขึ้น')}}
+ }
+ if(a.rain24>=T.rain24.risk||a.rain48>=T.rain48.risk){s=Math.max(s,2);w.push('ฝนตกหนักมาก')}
+ else if(a.rain24>=T.rain24.watch||a.rain48>=T.rain48.watch){s=Math.max(s,1);w.push('มีฝนตกหนัก')}
+ return{s,why:w.join(' ')||LV[0].d};
+}
+const v=(x,u)=>x==null?'ไม่มีข้อมูล':x+' '+u;
+const TR={up:'สูงขึ้น',down:'ลดลง',steady:'ทรงตัว'};
+function render(){
+ const a=D.areas.find(x=>x.id===$('area').value);if(!a)return;
+ const r=assess(a);
+ $('card').className='card '+(r.s<0?'unknown':LV[r.s].k);
+ $('card').replaceChildren();
+ const h=document.createElement('h2');h.textContent=r.s<0?'ข้อมูลไม่พอ':LV[r.s].t;
+ const p=document.createElement('p');p.textContent=r.s<0?r.why:r.why+(r.s>0?' — '+LV[r.s].d:'');
+ $('card').append(h,p);
+ const rows=[['ฝนสะสม 24 ชม.',v(a.rain24,'มม.')],['ฝนพยากรณ์ 48 ชม.',v(a.rain48,'มม.')],
+  ['ระดับน้ำ'+(a.station?' ('+a.station+')':''),v(a.level_m,'ม.')],
+  ['ระดับเตือน / วิกฤต',a.warn_m!=null?a.warn_m+' / '+a.crit_m+' ม.':'ไม่มีข้อมูล'],
+  ['แนวโน้มระดับน้ำ',TR[a.trend]||'ไม่มีข้อมูล']];
+ $('rows').replaceChildren(...rows.map(([k,x])=>{const d=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=x;d.append(dt,dd);return d}));
+ try{localStorage.setItem('area',a.id)}catch(e){}
+}
+async function load(){
+ try{const r=await fetch('data/latest.json',{cache:'no-cache'});if(!r.ok)throw 0;D=await r.json()}
+ catch(e){$('upd').textContent='โหลดข้อมูลไม่ได้';note('โหลดข้อมูลล่าสุดไม่ได้ ตรวจสอบอินเทอร์เน็ต หรือดูประกาศทางการด้านล่าง',1);$('card').hidden=true;return}
+ const m=ageMin(),ago=m<1?'เมื่อสักครู่':m<60?Math.round(m)+' นาทีที่แล้ว':Math.floor(m/60)+' ชม.ที่แล้ว';
+ $('upd').textContent='อัปเดต '+new Date(D.updated).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})+' ('+ago+')';
+ if(D.sample)note('นี่คือข้อมูลตัวอย่างสำหรับทดสอบแอป ห้ามใช้ตัดสินใจจริง',1);
+ else if(ageMin()>T.staleMin)note('ข้อมูลไม่ได้อัปเดตนานแล้ว ผลประเมินอาจไม่ตรงความจริง ดูประกาศทางการเป็นหลัก');
+ $('area').replaceChildren(...D.areas.map(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.name;return o}));
+ let s;try{s=localStorage.getItem('area')}catch(e){}
+ if(s&&D.areas.some(a=>a.id===s))$('area').value=s;
+ render();
+}
+$('area').addEventListener('change',()=>D&&render());
+load();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
