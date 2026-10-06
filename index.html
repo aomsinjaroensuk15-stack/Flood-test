@@ -99,8 +99,8 @@ function render(){
  try{localStorage.setItem('area',a.id)}catch(e){}
 }
 async function load(){
- try{const r=await fetch('data/latest.json',{cache:'no-cache'});if(!r.ok)throw 0;D=await r.json()}
- catch(e){$('upd').textContent='โหลดข้อมูลไม่ได้';note('โหลดข้อมูลล่าสุดไม่ได้ ตรวจสอบอินเทอร์เน็ต หรือดูประกาศทางการด้านล่าง',1);$('card').hidden=true;return}
+ try{const r=await fetch('data/latest.json',{cache:'no-cache'});if(!r.ok)throw new Error('HTTP '+r.status);D=await r.json()}
+ catch(e){$('upd').textContent='โหลดข้อมูลไม่ได้ ('+e.message+')';note('โหลดข้อมูลล่าสุดไม่ได้ ตรวจสอบอินเทอร์เน็ต หรือดูประกาศทางการด้านล่าง',1);$('card').hidden=true;return}
  const m=ageMin(),ago=m<1?'เมื่อสักครู่':m<60?Math.round(m)+' นาทีที่แล้ว':Math.floor(m/60)+' ชม.ที่แล้ว';
  $('upd').textContent='อัปเดต '+new Date(D.updated).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'})+' ('+ago+')';
  if(D.sample)note('นี่คือข้อมูลตัวอย่างสำหรับทดสอบแอป ห้ามใช้ตัดสินใจจริง',1);
