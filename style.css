@@ -19,6 +19,7 @@
  :root:not([data-theme=light]) #map .leaflet-tile-pane{filter:brightness(.78) contrast(1.1) saturate(.85)}}
 
 /* ===== พื้นฐาน + หัวหน้าแบบไล่สี ===== */
+[hidden]{display:none!important}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{height:100%;scroll-behavior:smooth}
 body{margin:0;min-height:100%;position:relative;isolation:isolate;background:var(--bg);color:var(--ink);
@@ -159,3 +160,11 @@ details li::marker{color:var(--accent)}
 .emi b{display:block}
 .emi small{color:var(--mute)}
 .emi i{color:var(--accent);font-style:normal;font-weight:700;white-space:nowrap}
+
+/* ===== ปุ่มแสดงความอันตราย + คำอธิบายสี ===== */
+#hz{background:linear-gradient(135deg,#F97316,#DC2626);color:#fff;border:0;box-shadow:0 6px 16px rgba(220,38,38,.3)}
+#hz:disabled{opacity:.7;cursor:progress}
+#hzx{flex:0 0 auto}
+#lg{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0}
+#lg span{display:inline-flex;align-items:center;gap:.45rem;padding:.3rem .75rem;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:.85rem;font-weight:700}
+#lg i{width:.85rem;height:.85rem;border-radius:50%}
