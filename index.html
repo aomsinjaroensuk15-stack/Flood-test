@@ -27,7 +27,9 @@
 <h2 id="dh" hidden>พยากรณ์ฝน 7 วัน (มม.)</h2>
 <div id="days"></div>
 <dl id="rows"></dl>
-<div class="acts"><button id="save" type="button" hidden>บันทึกจุดนี้</button><button id="share" type="button" hidden>แชร์ผล</button></div>
+<div class="acts"><button id="save" type="button" hidden>บันทึกจุดนี้</button><button id="share" type="button" hidden>แชร์ผล</button><button id="ovb" type="button" hidden>ภาพรวมทุกจุดที่บันทึก</button><button id="emb" type="button" hidden>สถานที่ฉุกเฉินใกล้ฉัน</button></div>
+<section id="ov" hidden><h2>ภาพรวมจุดที่บันทึก</h2><div id="ovl"></div></section>
+<section id="em" hidden><h2>สถานที่ฉุกเฉินใกล้จุดนี้</h2><div id="eml"></div><p class="tip">ข้อมูลจาก OpenStreetMap อาจไม่ครบหรือไม่เป็นปัจจุบัน หากฉุกเฉินให้โทร 1669 (แพทย์) 191 (ตำรวจ) 199 (ดับเพลิง)</p></section>
 <div id="areas" hidden><label for="area">หรือเลือกสถานีตรวจวัด</label>
 <select id="area"></select></div>
 <details><summary>เตรียมตัวรับน้ำท่วม</summary><ul><li>ชาร์จมือถือและพาวเวอร์แบงก์ให้เต็ม</li><li>ย้ายเอกสารและของมีค่าขึ้นที่สูง</li><li>เตรียมน้ำดื่ม อาหาร และยาประจำตัว</li><li>ตัดไฟชั้นล่างก่อนน้ำเข้าบ้าน</li><li>รู้เส้นทางและจุดอพยพใกล้บ้าน</li></ul></details>
@@ -36,7 +38,7 @@
 <a href="tel:1784">ปภ. 1784</a><a href="tel:1669">การแพทย์ฉุกเฉิน 1669</a>
 <h2>ประกาศทางการ</h2>
 <a href="https://www.thaiwater.net">Thaiwater</a><a href="https://www.tmd.go.th">กรมอุตุนิยมวิทยา</a>
-<p class="fine">ข้อมูลฝนและปริมาณน้ำในแม่น้ำจาก <a href="https://open-meteo.com">Open-Meteo</a> (CC BY 4.0, โมเดลแม่น้ำ GloFAS/Copernicus) แผนที่ © OpenStreetMap contributors</p>
+<p class="fine">ข้อมูลฝนและปริมาณน้ำในแม่น้ำจาก <a href="https://open-meteo.com">Open-Meteo</a> (CC BY 4.0, โมเดลแม่น้ำ GloFAS/Copernicus, ความสูงจาก Copernicus DEM) แผนที่และตำแหน่งสถานที่ © OpenStreetMap contributors</p>
 <p class="fine">นี่คือการประเมินความเสี่ยงเบื้องต้นจากข้อมูลที่มี ไม่ใช่คำเตือนภัยทางการ และไม่รับประกันว่าพื้นที่ปลอดภัย หากอยู่ในสถานการณ์อันตราย ให้ทำตามคำสั่งเจ้าหน้าที่ก่อนเสมอ</p>
 </section>
 </main>
@@ -51,7 +53,7 @@ const LV=[
  {k:'risk',t:'เสี่ยง',d:'เตรียมของจำเป็นและวางแผนเส้นทางอพยพ'},
  {k:'danger',t:'อันตราย',d:'ทำตามคำสั่งเจ้าหน้าที่และย้ายไปที่ปลอดภัย'}
 ];
-let cur=null,AREAS=[],AUPD=0,map=null,mk=null;
+let cur=null,AREAS=[],AUPD=0,map=null,mk=null,emG=null;
 function note(t,bad){const n=$('note');n.textContent=t;n.className='note'+(bad?' bad':'');n.hidden=!t}
 function assess(a,ts){
  if((Date.now()-ts)/6e4>T.staleMin)return{s:-1,why:'ข้อมูลเก่าเกิน '+T.staleMin/60+' ชั่วโมง ยังประเมินไม่ได้'};
@@ -91,7 +93,7 @@ const TR={up:'สูงขึ้น',down:'ลดลง',steady:'ทรงตั
 function render(){
  const card=$('card');card.replaceChildren();
  const h=document.createElement('h2'),p=document.createElement('p');card.append(h,p);
- if(!cur){card.className='card unknown';h.textContent='ข้อมูลไม่พอ';p.textContent='กดปุ่ม "ใช้ตำแหน่งของฉัน" หรือแตะแผนที่เพื่อเริ่ม';$('rows').replaceChildren();$('basis').textContent='';$('days').replaceChildren();$('dh').hidden=true;$('when').hidden=true;$('save').hidden=$('share').hidden=true;return}
+ if(!cur){card.className='card unknown';h.textContent='ข้อมูลไม่พอ';p.textContent='กดปุ่ม "ใช้ตำแหน่งของฉัน" หรือแตะแผนที่เพื่อเริ่ม';$('rows').replaceChildren();$('basis').textContent='';$('days').replaceChildren();$('dh').hidden=true;$('when').hidden=true;$('save').hidden=$('share').hidden=$('emb').hidden=true;return}
  const a=cur.a,r=assess(a,cur.ts);
  card.className='card '+(r.s<0?'unknown':LV[r.s].k);
  h.textContent=r.s<0?'ข้อมูลไม่พอ':LV[r.s].t;
@@ -102,17 +104,19 @@ function render(){
  const dv=a.days||[];$('dh').hidden=!dv.length;
  $('days').replaceChildren(...dv.map((x,i)=>{const d=document.createElement('div'),b=document.createElement('div'),n=document.createElement('b'),l=document.createElement('span');d.className='d '+(x>=T.rain24.risk?'risk':x>=T.rain24.watch?'watch':'ok');b.className='bar';b.style.height=Math.min(100,x||0)*.65+'%';n.textContent=x==null?'-':x;l.textContent=i?new Date(Date.now()+i*864e5).toLocaleDateString('th-TH',{weekday:'short'}):'วันนี้';d.append(n,b,l);return d}));
  {const w=when(a);$('when').hidden=r.s<0;$('wt').textContent=w.t;$('wn').textContent=w.n.join('\n')}
- $('save').hidden=!cur.lat;$('share').hidden=false;
+ $('save').hidden=$('emb').hidden=!cur.lat;$('share').hidden=false;
  const rows=[['ฝนสะสมย้อนหลัง 24 ชม.',v(a.rain24,'มม.')],['ฝนพยากรณ์ 48 ชม.ข้างหน้า',v(a.rain48,'มม.')]];
  if(a.level_m!=null)rows.push(['ระดับน้ำ'+(a.station?' ('+a.station+')':''),v(a.level_m,'ม.')],['ระดับเตือน / วิกฤต',a.warn_m+' / '+a.crit_m+' ม.'],['แนวโน้มระดับน้ำ',TR[a.trend]||'ไม่มีข้อมูล']);
+ if(a.elev!=null)rows.push(['ความสูงพื้นที่ (โดยประมาณ)','~'+a.elev+' ม.']);
  if(a.dr!=null)rows.push(['น้ำในแม่น้ำวันนี้ (จำลอง)',a.dis.toFixed(1)+' ม³/วิ'],['ยอดสูงสุดใน 7 วัน',a.dpk.toFixed(1)+' ม³/วิ '+(a.dpd?'(อีก '+a.dpd+' วัน)':'(วันนี้)')],['เทียบสูงสุดรอบ 90 วัน',Math.round(a.dr*100)+'% · '+TR[a.dtr]]);
  $('rows').replaceChildren(...rows.map(([k,x])=>{const d=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=x;d.append(dt,dd);return d}));
 }
 async function rain(lat,lon){
  const q='latitude='+lat.toFixed(3)+'&longitude='+lon.toFixed(3);
- const [R,F]=await Promise.allSettled([
+ const [R,F,E]=await Promise.allSettled([
   fetch('https://api.open-meteo.com/v1/forecast?'+q+'&hourly=precipitation&daily=precipitation_sum&past_days=1&forecast_days=7&timeformat=unixtime&timezone=Asia%2FBangkok').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}),
-  fetch('https://flood-api.open-meteo.com/v1/flood?'+q+'&daily=river_discharge&past_days=90&forecast_days=7').then(r=>r.ok?r.json():null)]);
+  fetch('https://flood-api.open-meteo.com/v1/flood?'+q+'&daily=river_discharge&past_days=90&forecast_days=7').then(r=>r.ok?r.json():null),
+  fetch('https://api.open-meteo.com/v1/elevation?'+q).then(r=>r.ok?r.json():null)]);
  if(R.status!=='fulfilled')throw R.reason;
  const h=R.value.hourly,n=Date.now()/1e3;let p=0,f=0,c=0;
  h.time.forEach((t,i)=>{const x=h.precipitation[i];if(x==null)return;c++;if(t>n-86400&&t<=n)p+=x;else if(t>n&&t<=n+172800)f+=x});
@@ -120,6 +124,7 @@ async function rain(lat,lon){
  const fu=[];h.time.forEach((t,i)=>{if(t>n&&t<=n+604800)fu.push([t,h.precipitation[i]||0])});
  let bm=0,bt=0;for(let i=0;i+6<=fu.length;i++){let q=0;for(let k=0;k<6;k++)q+=fu[i+k][1];if(q>bm){bm=q;bt=fu[i][0]}}
  const o={pk6:bm>0?{t:bt,mm:Math.round(bm*10)/10}:null,rain24:Math.round(p*10)/10,rain48:Math.round(f*10)/10,days:(R.value.daily.precipitation_sum||[]).slice(1,8).map(x=>x==null?null:Math.round(x))};
+ try{const z=E.value.elevation[0];if(z!=null)o.elev=Math.round(z)}catch(ex){}
  try{const a=F.value.daily.river_discharge,b=a.slice(0,a.length-7).filter(x=>x!=null),g=a.slice(a.length-7).filter(x=>x!=null);
   if(b.length>30&&g.length){const mx=Math.max(...b),pk=Math.max(...g);
    if(mx>=1){o.dis=g[0];o.dpk=pk;o.dpd=g.indexOf(pk);o.dr=pk/mx;const d=g[g.length-1]-g[0];o.dtr=d>.1*g[0]?'up':d<-.1*g[0]?'down':'steady'}}}catch(e){}
@@ -127,6 +132,7 @@ async function rain(lat,lon){
 }
 async function pick(lat,lon,label){
  if(map){if(mk)mk.setLatLng([lat,lon]);else mk=L.circleMarker([lat,lon],{radius:9,color:'#fff',weight:3,fillColor:'#1B7A8C',fillOpacity:1}).addTo(map)}
+ $('em').hidden=true;if(emG)emG.clearLayers();
  $('upd').textContent='กำลังดึงข้อมูลฝน…';note('');
  try{const a=await rain(lat,lon);cur={a,ts:Date.now(),label,lat,lon};try{localStorage.setItem('last',JSON.stringify(cur))}catch(e){}}
  catch(e){cur=null;$('upd').textContent='ยังไม่มีข้อมูล';note('ดึงข้อมูลฝนไม่ได้ ('+e.message+') ตรวจสอบอินเทอร์เน็ต หรือดูประกาศทางการด้านล่าง',1)}
@@ -150,8 +156,40 @@ $('area').addEventListener('change',()=>{const a=AREAS.find(x=>x.id===$('area').
 $('loc').addEventListener('click',locate);
 let PL=[];try{PL=JSON.parse(localStorage.getItem('places'))||[]}catch(e){}
 function sp(){try{localStorage.setItem('places',JSON.stringify(PL))}catch(e){}}
-function places(){$('places').replaceChildren(...PL.map((p,i)=>{const w=document.createElement('span'),g=document.createElement('button'),x=document.createElement('button');g.className=x.className='chip';g.textContent=p.name;x.textContent='×';x.setAttribute('aria-label','ลบ '+p.name);
+function places(){$('ovb').hidden=!PL.length;if(!PL.length)$('ov').hidden=true;$('places').replaceChildren(...PL.map((p,i)=>{const w=document.createElement('span'),g=document.createElement('button'),x=document.createElement('button');g.className=x.className='chip';g.textContent=p.name;x.textContent='×';x.setAttribute('aria-label','ลบ '+p.name);
  g.onclick=()=>{if(map)map.setView([p.lat,p.lon],11);pick(p.lat,p.lon,p.name)};x.onclick=()=>{PL.splice(i,1);sp();places()};w.append(g,x);return w}))}
+async function overview(){
+ if(!PL.length)return;
+ $('ov').hidden=false;$('ovl').textContent='กำลังดึงข้อมูล…';
+ const R=await Promise.allSettled(PL.map(p=>rain(p.lat,p.lon)));
+ $('ovl').replaceChildren(...PL.map((p,i)=>{
+  const b=document.createElement('button'),n=document.createElement('b'),l=document.createElement('span'),d=document.createElement('small'),r=R[i];
+  let k='unknown',t='ข้อมูลไม่พอ',w='ดึงข้อมูลไม่ได้';
+  if(r.status==='fulfilled'){const x=assess(r.value,Date.now());w=x.s===0?'ยังไม่พบสัญญาณเสี่ยงจากข้อมูลนี้':x.why;if(x.s>=0){k=LV[x.s].k;t=LV[x.s].t}}
+  b.type='button';b.className='ovi '+k;n.textContent=p.name;l.textContent=t;d.textContent=w;b.append(n,l,d);
+  b.onclick=()=>{if(map)map.setView([p.lat,p.lon],11);pick(p.lat,p.lon,p.name);scrollTo({top:0,behavior:'smooth'})};
+  return b}));
+}
+const EMT={hospital:['โรงพยาบาล','#D92D20'],police:['ตำรวจ','#1D4ED8'],fire_station:['ดับเพลิง','#EA580C']};
+const hav=(a,b,c,d)=>{const r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,h=Math.sin(x/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+async function emerg(){ // ค้นเฉพาะตอนกดปุ่ม เพื่อไม่ภาระเซิร์ฟเวอร์สาธารณะของ Overpass
+ if(!cur||!cur.lat)return;
+ const{lat,lon}=cur;$('em').hidden=false;$('eml').textContent='กำลังค้นหา…';
+ try{
+  const q='[out:json][timeout:15];nwr["amenity"~"^(hospital|police|fire_station)$"](around:8000,'+lat+','+lon+');out center 80;';
+  const r=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q));
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const all=((await r.json()).elements||[]).map(e=>{const g=e.tags||{},y=e.lat??(e.center&&e.center.lat),x=e.lon??(e.center&&e.center.lon);return y==null||!EMT[g.amenity]?null:{n:g['name:th']||g.name||EMT[g.amenity][0],k:g.amenity,y,x,d:hav(lat,lon,y,x)}}).filter(Boolean).sort((a,b)=>a.d-b.d);
+  const c={},top=all.filter(p=>(c[p.k]=(c[p.k]||0)+1)<=3);
+  if(emG){emG.clearLayers();top.forEach(p=>{const s=document.createElement('span');s.textContent=p.n+' · '+EMT[p.k][0];L.circleMarker([p.y,p.x],{radius:7,color:'#fff',weight:2,fillColor:EMT[p.k][1],fillOpacity:1}).bindPopup(s).addTo(emG)})}
+  $('eml').replaceChildren(...(top.length?top.map(p=>{
+   const a=document.createElement('a'),w=document.createElement('div'),n=document.createElement('b'),s=document.createElement('small'),i=document.createElement('i');
+   a.className='emi';a.href='https://www.google.com/maps/dir/?api=1&destination='+p.y+','+p.x;a.target='_blank';a.rel='noopener';
+   n.textContent=p.n;s.textContent=EMT[p.k][0];i.textContent=p.d.toFixed(1)+' กม. ›';w.append(n,s);a.append(w,i);return a
+  }):[Object.assign(document.createElement('p'),{className:'tip',textContent:'ไม่พบสถานที่ในรัศมี 8 กม. (ข้อมูล OpenStreetMap อาจไม่ครบ)'})]));
+ }catch(e){$('eml').textContent='ค้นหาไม่ได้ ('+e.message+') หากฉุกเฉินให้โทร 1669'}
+}
+$('ovb').onclick=overview;$('emb').onclick=emerg;
 $('save').onclick=()=>{if(!cur||!cur.lat)return;const n=(prompt('ตั้งชื่อสถานที่ (เช่น บ้าน)',cur.label||'')||'').trim().slice(0,20);if(!n)return;PL=PL.filter(p=>p.name!==n);PL.unshift({name:n,lat:cur.lat,lon:cur.lon});PL=PL.slice(0,6);sp();places()};
 $('share').onclick=async()=>{if(!cur)return;const c=$('card').children,t=(cur.label||'จุดที่เลือก')+': '+c[0].textContent+' — '+c[1].textContent+' (เช็กน้ำท่วม)';try{if(navigator.share)await navigator.share({title:'เช็กน้ำท่วม',text:t,url:location.href});else{await navigator.clipboard.writeText(t+' '+location.href);note('คัดลอกข้อความแล้ว')}}catch(e){}};
 try{const s=JSON.parse(localStorage.getItem('last'));if(s&&s.a)cur=s}catch(e){}
@@ -159,6 +197,7 @@ if(window.L){
  map=L.map('map').setView(cur&&cur.lat?[cur.lat,cur.lon]:[13.2,101],cur&&cur.lat?11:6);
  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map);
  if(cur&&cur.lat)mk=L.circleMarker([cur.lat,cur.lon],{radius:9,color:'#fff',weight:3,fillColor:'#1B7A8C',fillOpacity:1}).addTo(map);
+ emG=L.layerGroup().addTo(map);
  map.on('click',e=>pick(e.latlng.lat,e.latlng.lng,'จุดที่เลือกบนแผนที่'));
 }else{$('map').hidden=true;note('โหลดแผนที่ไม่ได้ (อาจไม่มีอินเทอร์เน็ต) ยังดูผลล่าสุดที่เก็บไว้ได้')}
 $('upd').textContent=cur?'':'พร้อมใช้งาน';
