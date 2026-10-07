@@ -50,8 +50,8 @@ button:active{transform:scale(.97)}
  font-size:1.05rem;font-weight:800;box-shadow:0 8px 20px rgba(4,30,50,.3)}
 #loc::before{content:"◎";margin-right:.5rem;color:var(--accent)}
 #loc:disabled{opacity:.65;cursor:progress}
-.acts{display:flex;gap:.6rem;margin:1rem 0}
-.acts button{flex:1;padding:.7rem 1rem;border-radius:999px;border:1.5px solid var(--accent);background:transparent;color:var(--accent)}
+.acts{display:flex;flex-wrap:wrap;gap:.6rem;margin:1rem 0}
+.acts button{flex:1 1 42%;padding:.7rem 1rem;border-radius:999px;border:1.5px solid var(--accent);background:transparent;color:var(--accent)}
 .acts button:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}
 
 /* ===== จุดที่บันทึก (ชิป) ===== */
@@ -145,3 +145,17 @@ details li::marker{color:var(--accent)}
 @keyframes grow{from{transform:scaleY(0)}}
 @keyframes pulse{from{box-shadow:0 0 0 0 color-mix(in srgb,var(--c) 55%,transparent)}to{box-shadow:0 0 0 .9rem transparent}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* ===== ภาพรวมจุดที่บันทึก + สถานที่ฉุกเฉิน ===== */
+#ovl,#eml{display:grid;gap:.5rem}
+.ovi{display:grid;grid-template-columns:1fr auto;align-items:center;gap:.1rem .75rem;width:100%;min-height:0;padding:.8rem 1rem;text-align:left;
+ border:1px solid color-mix(in srgb,var(--c) 28%,transparent);border-left:.45rem solid var(--c);border-radius:1rem;
+ background:linear-gradient(135deg,var(--b),var(--panel));color:var(--ink);box-shadow:var(--shadow)}
+.ovi b{font-size:1.05rem}
+.ovi span{color:var(--c);font-weight:800}
+.ovi small{grid-column:1/-1;color:var(--mute);font-size:.82rem;font-weight:400}
+.emi{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding:.75rem 1rem;border:1px solid var(--line);
+ border-radius:1rem;background:var(--panel);box-shadow:var(--shadow);color:var(--ink);text-decoration:none}
+.emi b{display:block}
+.emi small{color:var(--mute)}
+.emi i{color:var(--accent);font-style:normal;font-weight:700;white-space:nowrap}
