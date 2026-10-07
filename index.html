@@ -41,6 +41,16 @@ button:disabled{opacity:.6}
 #map{height:16rem;border-radius:.75rem;margin:.75rem 0;border:1px solid var(--line);z-index:0}
 .tip{margin:.25rem 0 0;color:var(--mute);font-size:.85rem}
 #areas{margin-top:1rem}
+#days{display:flex;gap:.35rem;align-items:flex-end;height:8.5rem;margin:.5rem 0 1rem}
+#days:empty{display:none}
+#days .d{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;font-size:.78rem;color:var(--mute)}
+#days .bar{width:100%;min-height:3px;border-radius:.3rem .3rem 0 0;background:var(--c)}
+#days b{color:var(--ink);font-weight:600}
+.acts{display:flex;gap:.5rem;margin:.75rem 0}
+.acts button,.chip{width:auto;flex:1;background:transparent;color:var(--accent);border:1px solid var(--accent);padding:.55rem .75rem;font-weight:600}
+.chip{flex:none;padding:.35rem .7rem;margin:0 .15rem .4rem 0;font-size:.9rem}
+details{margin-top:1.25rem;background:var(--panel);border:1px solid var(--line);border-radius:.75rem;padding:.75rem 1rem}
+summary{font-weight:600;cursor:pointer}
 .fine{font-size:.85rem;color:var(--mute)}
 </style>
 </head>
@@ -51,18 +61,23 @@ button:disabled{opacity:.6}
 <div id="note" class="note" hidden></div>
 <button id="loc" type="button">ใช้ตำแหน่งของฉัน</button>
 <p class="tip">หรือแตะบนแผนที่เพื่อเลือกจุดที่ต้องการเช็ก</p>
+<div id="places"></div>
 <div id="map" role="application" aria-label="แผนที่เลือกตำแหน่ง"></div>
 <section id="card" class="card unknown" aria-live="polite"></section>
 <p id="basis" class="tip"></p>
+<h2 id="dh" hidden>พยากรณ์ฝน 7 วัน (มม.)</h2>
+<div id="days"></div>
 <dl id="rows"></dl>
+<div class="acts"><button id="save" type="button" hidden>บันทึกจุดนี้</button><button id="share" type="button" hidden>แชร์ผล</button></div>
 <div id="areas" hidden><label for="area">หรือเลือกสถานีตรวจวัด</label>
 <select id="area"></select></div>
+<details><summary>เตรียมตัวรับน้ำท่วม</summary><ul><li>ชาร์จมือถือและพาวเวอร์แบงก์ให้เต็ม</li><li>ย้ายเอกสารและของมีค่าขึ้นที่สูง</li><li>เตรียมน้ำดื่ม อาหาร และยาประจำตัว</li><li>ตัดไฟชั้นล่างก่อนน้ำเข้าบ้าน</li><li>รู้เส้นทางและจุดอพยพใกล้บ้าน</li></ul></details>
 <section class="help">
 <h2>ขอความช่วยเหลือ</h2>
 <a href="tel:1784">ปภ. 1784</a><a href="tel:1669">การแพทย์ฉุกเฉิน 1669</a>
 <h2>ประกาศทางการ</h2>
 <a href="https://www.thaiwater.net">Thaiwater</a><a href="https://www.tmd.go.th">กรมอุตุนิยมวิทยา</a>
-<p class="fine">ข้อมูลฝนจาก <a href="https://open-meteo.com">Open-Meteo</a> (CC BY 4.0) แผนที่ © OpenStreetMap contributors</p>
+<p class="fine">ข้อมูลฝนและปริมาณน้ำในแม่น้ำจาก <a href="https://open-meteo.com">Open-Meteo</a> (CC BY 4.0, โมเดลแม่น้ำ GloFAS/Copernicus) แผนที่ © OpenStreetMap contributors</p>
 <p class="fine">นี่คือการประเมินความเสี่ยงเบื้องต้นจากข้อมูลที่มี ไม่ใช่คำเตือนภัยทางการ และไม่รับประกันว่าพื้นที่ปลอดภัย หากอยู่ในสถานการณ์อันตราย ให้ทำตามคำสั่งเจ้าหน้าที่ก่อนเสมอ</p>
 </section>
 </main>
@@ -83,13 +98,20 @@ function assess(a,ts){
  if((Date.now()-ts)/6e4>T.staleMin)return{s:-1,why:'ข้อมูลเก่าเกิน '+T.staleMin/60+' ชั่วโมง ยังประเมินไม่ได้'};
  const hasLv=a.level_m!=null&&a.warn_m!=null&&a.crit_m!=null;
  if(!hasLv&&a.rain24==null&&a.rain48==null)return{s:-1,why:'ยังไม่มีข้อมูลของพื้นที่นี้'};
- let s=0;const w=[];
+ let s=0,rs=0;const w=[];
  if(hasLv){
   if(a.level_m>=a.crit_m){s=3;w.push('ระดับน้ำถึงระดับวิกฤต')}
   else if(a.level_m>=a.warn_m){s=2;w.push('ระดับน้ำเกินระดับเตือนภัย');if(a.trend==='up'){s=3;w.push('และกำลังสูงขึ้น')}}
  }
- if(a.rain24>=T.rain24.risk||a.rain48>=T.rain48.risk){s=Math.max(s,2);w.push('ฝนตกหนักมาก')}
- else if(a.rain24>=T.rain24.watch||a.rain48>=T.rain48.watch){s=Math.max(s,1);w.push('มีฝนตกหนัก')}
+ if(a.rain24>=T.rain24.risk||a.rain48>=T.rain48.risk){s=Math.max(s,2);rs=2;w.push('ฝนตกหนักมาก')}
+ else if(a.rain24>=T.rain24.watch||a.rain48>=T.rain48.watch){s=Math.max(s,1);rs=1;w.push('มีฝนตกหนัก')}
+ const dm=Math.max(0,...(a.days||[]).map(x=>x||0));
+ if(dm>=T.rain24.risk){s=Math.max(s,2);if(rs<2)w.push('คาดว่าฝนตกหนักมากภายใน 7 วัน');rs=2}
+ else if(dm>=T.rain24.watch){s=Math.max(s,1);if(rs<1)w.push('คาดว่าฝนตกหนักภายใน 7 วัน');rs=Math.max(rs,1)}
+ if(a.dr!=null){ // เกณฑ์เทียบสูงสุดรอบ 90 วัน เป็นค่าตั้งต้น (placeholder)
+  if(a.dr>=1){s=Math.max(s,2);w.push('ปริมาณน้ำในแม่น้ำ (จำลอง) คาดสูงกว่าช่วง 90 วันที่ผ่านมา');if(rs>=2)s=3}
+  else if(a.dr>=.7){s=Math.max(s,1);w.push('ปริมาณน้ำในแม่น้ำ (จำลอง) ใกล้ระดับสูงสุดรอบ 90 วัน')}
+ }
  return{s,why:w.join(' ')||LV[0].d};
 }
 const v=(x,u)=>x==null?'ไม่มีข้อมูล':x+' '+u;
@@ -97,25 +119,36 @@ const TR={up:'สูงขึ้น',down:'ลดลง',steady:'ทรงตั
 function render(){
  const card=$('card');card.replaceChildren();
  const h=document.createElement('h2'),p=document.createElement('p');card.append(h,p);
- if(!cur){card.className='card unknown';h.textContent='ข้อมูลไม่พอ';p.textContent='กดปุ่ม "ใช้ตำแหน่งของฉัน" หรือแตะแผนที่เพื่อเริ่ม';$('rows').replaceChildren();$('basis').textContent='';return}
+ if(!cur){card.className='card unknown';h.textContent='ข้อมูลไม่พอ';p.textContent='กดปุ่ม "ใช้ตำแหน่งของฉัน" หรือแตะแผนที่เพื่อเริ่ม';$('rows').replaceChildren();$('basis').textContent='';$('days').replaceChildren();$('dh').hidden=true;$('save').hidden=$('share').hidden=true;return}
  const a=cur.a,r=assess(a,cur.ts);
  card.className='card '+(r.s<0?'unknown':LV[r.s].k);
  h.textContent=r.s<0?'ข้อมูลไม่พอ':LV[r.s].t;
  p.textContent=r.s<0?r.why:r.why+(r.s>0?' — '+LV[r.s].d:'');
  const m=(Date.now()-cur.ts)/6e4,ago=m<1?'เมื่อสักครู่':m<60?Math.round(m)+' นาทีที่แล้ว':Math.floor(m/60)+' ชม.ที่แล้ว';
  $('upd').textContent='อัปเดต '+ago+(cur.label?' · '+cur.label:'');
- $('basis').textContent=a.level_m==null?'ประเมินจากปริมาณฝนเท่านั้น ยังไม่รวมระดับน้ำในแม่น้ำหรือน้ำเหนือ จึงไม่ได้แปลว่าน้ำจะไม่ท่วม':'';
+ $('basis').textContent=a.level_m!=null?'':a.dr!=null?'ประเมินจากฝนและปริมาณน้ำในแม่น้ำที่โมเดล GloFAS จำลอง (ความละเอียด ~5 กม. อาจเลือกแม่น้ำคลาดเคลื่อน ไม่ใช่ระดับน้ำจริงที่วัดได้) จึงไม่ได้แปลว่าน้ำจะไม่ท่วม':'ประเมินจากปริมาณฝนเท่านั้น ไม่มีข้อมูลแม่น้ำใกล้จุดนี้ จึงไม่ได้แปลว่าน้ำจะไม่ท่วม';
+ const dv=a.days||[];$('dh').hidden=!dv.length;
+ $('days').replaceChildren(...dv.map((x,i)=>{const d=document.createElement('div'),b=document.createElement('div'),n=document.createElement('b'),l=document.createElement('span');d.className='d '+(x>=T.rain24.risk?'risk':x>=T.rain24.watch?'watch':'ok');b.className='bar';b.style.height=Math.min(100,x||0)*.65+'%';n.textContent=x==null?'-':x;l.textContent=i?new Date(Date.now()+i*864e5).toLocaleDateString('th-TH',{weekday:'short'}):'วันนี้';d.append(n,b,l);return d}));
+ $('save').hidden=!cur.lat;$('share').hidden=false;
  const rows=[['ฝนสะสมย้อนหลัง 24 ชม.',v(a.rain24,'มม.')],['ฝนพยากรณ์ 48 ชม.ข้างหน้า',v(a.rain48,'มม.')]];
  if(a.level_m!=null)rows.push(['ระดับน้ำ'+(a.station?' ('+a.station+')':''),v(a.level_m,'ม.')],['ระดับเตือน / วิกฤต',a.warn_m+' / '+a.crit_m+' ม.'],['แนวโน้มระดับน้ำ',TR[a.trend]||'ไม่มีข้อมูล']);
+ if(a.dr!=null)rows.push(['น้ำในแม่น้ำวันนี้ (จำลอง)',a.dis.toFixed(1)+' ม³/วิ'],['ยอดสูงสุดใน 7 วัน',a.dpk.toFixed(1)+' ม³/วิ '+(a.dpd?'(อีก '+a.dpd+' วัน)':'(วันนี้)')],['เทียบสูงสุดรอบ 90 วัน',Math.round(a.dr*100)+'% · '+TR[a.dtr]]);
  $('rows').replaceChildren(...rows.map(([k,x])=>{const d=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=x;d.append(dt,dd);return d}));
 }
 async function rain(lat,lon){
- const u='https://api.open-meteo.com/v1/forecast?latitude='+lat.toFixed(3)+'&longitude='+lon.toFixed(3)+'&hourly=precipitation&past_days=1&forecast_days=3&timeformat=unixtime&timezone=GMT';
- const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);
- const h=(await r.json()).hourly,n=Date.now()/1e3;let p=0,f=0,c=0;
+ const q='latitude='+lat.toFixed(3)+'&longitude='+lon.toFixed(3);
+ const [R,F]=await Promise.allSettled([
+  fetch('https://api.open-meteo.com/v1/forecast?'+q+'&hourly=precipitation&daily=precipitation_sum&past_days=1&forecast_days=7&timeformat=unixtime&timezone=Asia%2FBangkok').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}),
+  fetch('https://flood-api.open-meteo.com/v1/flood?'+q+'&daily=river_discharge&past_days=90&forecast_days=7').then(r=>r.ok?r.json():null)]);
+ if(R.status!=='fulfilled')throw R.reason;
+ const h=R.value.hourly,n=Date.now()/1e3;let p=0,f=0,c=0;
  h.time.forEach((t,i)=>{const x=h.precipitation[i];if(x==null)return;c++;if(t>n-86400&&t<=n)p+=x;else if(t>n&&t<=n+172800)f+=x});
  if(!c)throw new Error('ไม่มีข้อมูลฝน');
- return{rain24:Math.round(p*10)/10,rain48:Math.round(f*10)/10};
+ const o={rain24:Math.round(p*10)/10,rain48:Math.round(f*10)/10,days:(R.value.daily.precipitation_sum||[]).slice(1,8).map(x=>x==null?null:Math.round(x))};
+ try{const a=F.value.daily.river_discharge,b=a.slice(0,a.length-7).filter(x=>x!=null),g=a.slice(a.length-7).filter(x=>x!=null);
+  if(b.length>30&&g.length){const mx=Math.max(...b),pk=Math.max(...g);
+   if(mx>=1){o.dis=g[0];o.dpk=pk;o.dpd=g.indexOf(pk);o.dr=pk/mx;const d=g[g.length-1]-g[0];o.dtr=d>.1*g[0]?'up':d<-.1*g[0]?'down':'steady'}}}catch(e){}
+ return o;
 }
 async function pick(lat,lon,label){
  if(map){if(mk)mk.setLatLng([lat,lon]);else mk=L.circleMarker([lat,lon],{radius:9,color:'#fff',weight:3,fillColor:'#1B7A8C',fillOpacity:1}).addTo(map)}
@@ -140,6 +173,12 @@ async function loadAreas(){
 }
 $('area').addEventListener('change',()=>{const a=AREAS.find(x=>x.id===$('area').value);if(a){cur={a,ts:AUPD,label:a.name};render()}});
 $('loc').addEventListener('click',locate);
+let PL=[];try{PL=JSON.parse(localStorage.getItem('places'))||[]}catch(e){}
+function sp(){try{localStorage.setItem('places',JSON.stringify(PL))}catch(e){}}
+function places(){$('places').replaceChildren(...PL.map((p,i)=>{const w=document.createElement('span'),g=document.createElement('button'),x=document.createElement('button');g.className=x.className='chip';g.textContent=p.name;x.textContent='×';x.setAttribute('aria-label','ลบ '+p.name);
+ g.onclick=()=>{if(map)map.setView([p.lat,p.lon],11);pick(p.lat,p.lon,p.name)};x.onclick=()=>{PL.splice(i,1);sp();places()};w.append(g,x);return w}))}
+$('save').onclick=()=>{if(!cur||!cur.lat)return;const n=(prompt('ตั้งชื่อสถานที่ (เช่น บ้าน)',cur.label||'')||'').trim().slice(0,20);if(!n)return;PL=PL.filter(p=>p.name!==n);PL.unshift({name:n,lat:cur.lat,lon:cur.lon});PL=PL.slice(0,6);sp();places()};
+$('share').onclick=async()=>{if(!cur)return;const c=$('card').children,t=(cur.label||'จุดที่เลือก')+': '+c[0].textContent+' — '+c[1].textContent+' (เช็กน้ำท่วม)';try{if(navigator.share)await navigator.share({title:'เช็กน้ำท่วม',text:t,url:location.href});else{await navigator.clipboard.writeText(t+' '+location.href);note('คัดลอกข้อความแล้ว')}}catch(e){}};
 try{const s=JSON.parse(localStorage.getItem('last'));if(s&&s.a)cur=s}catch(e){}
 if(window.L){
  map=L.map('map').setView(cur&&cur.lat?[cur.lat,cur.lon]:[13.2,101],cur&&cur.lat?11:6);
@@ -148,7 +187,7 @@ if(window.L){
  map.on('click',e=>pick(e.latlng.lat,e.latlng.lng,'จุดที่เลือกบนแผนที่'));
 }else{$('map').hidden=true;note('โหลดแผนที่ไม่ได้ (อาจไม่มีอินเทอร์เน็ต) ยังดูผลล่าสุดที่เก็บไว้ได้')}
 $('upd').textContent=cur?'':'พร้อมใช้งาน';
-render();loadAreas();
+places();render();loadAreas();
 setInterval(()=>cur&&render(),6e4);
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
