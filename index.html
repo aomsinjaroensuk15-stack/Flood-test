@@ -139,10 +139,11 @@ async function rain(lat,lon){
 }
 async function batch(P){ // หลายจุดในคำขอเดียว (Open-Meteo คืนเป็นลิสต์เมื่อให้หลายพิกัด)
  const q='latitude='+P.map(p=>p[0].toFixed(3)).join(',')+'&longitude='+P.map(p=>p[1].toFixed(3)).join(',');
- const [R,F]=await Promise.allSettled([fetch(FC+q).then(J),fetch(FL+q).then(r=>r.ok?r.json():null)]);
+ const [R,F]=await Promise.allSettled([fetch(FC+q).then(J),fetch(FL+q).then(J)]);
  if(R.status!=='fulfilled')throw R.reason;
  const rv=[].concat(R.value),fv=F.status==='fulfilled'&&F.value?[].concat(F.value):[];
- return P.map((_,i)=>{try{return calc(rv[i],fv[i])}catch(ex){return null}});
+ const A=P.map((_,i)=>{try{return calc(rv[i],fv[i])}catch(ex){return null}});
+ A.fe=F.status==='rejected'?F.reason.message:'';return A;
 }
 const HZ=[null,['เฝ้าระวัง','#F2B705'],['เสี่ยง','#F97316'],['อันตราย','#DC2626']];
 let hzG=null;
@@ -153,13 +154,15 @@ async function hazard(){
  for(let i=0;i<N;i++)for(let j=0;j<N;j++)P.push([s+dy*(i+.5),w+dx*(j+.5)]);
  $('hz').disabled=true;$('hz').textContent='กำลังคำนวณ…';note('');
  try{
-  const A=await batch(P),cnt=[0,0,0,0];hzG.clearLayers();
+  const A=await batch(P),cnt=[0,0,0,0],nR=A.filter(Boolean).length,nF=A.filter(o=>o&&o.dr!=null).length;hzG.clearLayers();
+  // ช่องที่มีจุดที่เลือกอยู่ ใช้ผลชุดเดียวกับการ์ดความเสี่ยง เพื่อให้สีกับการ์ดตรงกัน
+  if(cur&&cur.lat&&(Date.now()-cur.ts)/6e4<=T.staleMin){const i=Math.floor((cur.lat-s)/dy),j=Math.floor((cur.lon-w)/dx);if(i>=0&&i<N&&j>=0&&j<N)A[i*N+j]=cur.a}
   A.forEach((o,k)=>{
    if(!o)return;const x=assess(o,Date.now());if(x.s<1)return;cnt[x.s]++;
    const[y,z]=P[k],e=document.createElement('span');e.textContent=HZ[x.s][0]+': '+x.why;
    L.rectangle([[y-dy/2,z-dx/2],[y+dy/2,z+dx/2]],{stroke:false,fillColor:HZ[x.s][1],fillOpacity:.42}).bindPopup(e).addTo(hzG)});
   $('lg').replaceChildren(...[1,2,3].map(l=>{const c=document.createElement('span'),d=document.createElement('i');d.style.background=HZ[l][1];c.append(d,HZ[l][0]+' '+cnt[l]+' ช่อง');return c}));
-  $('hzn').textContent=(cnt[1]+cnt[2]+cnt[3]?'':'ไม่พบพื้นที่เฝ้าระวังขึ้นไปในกรอบแผนที่นี้ตามข้อมูลที่มี — ')+'สีมาจากจุดตัวอย่าง 7×7 ช่อง (ช่องละประมาณ '+Math.round(dy*111)+' กม.) แตะช่องสีเพื่อดูเหตุผล ไม่ใช่ขอบเขตน้ำท่วมจริง พื้นที่ไม่มีสีหมายถึงไม่พบสัญญาณเสี่ยงจากข้อมูลนี้ ไม่ได้แปลว่าปลอดภัย';
+  $('hzn').textContent='ข้อมูลฝน '+nR+'/'+P.length+' ช่อง · ข้อมูลแม่น้ำ '+nF+'/'+P.length+' ช่อง'+(A.fe?' (ดึงข้อมูลแม่น้ำไม่ได้: '+A.fe+' ผลสีจึงอิงฝนอย่างเดียว)':'')+'\n'+(cnt[1]+cnt[2]+cnt[3]?'':'ไม่พบพื้นที่เฝ้าระวังขึ้นไปในกรอบแผนที่นี้ตามข้อมูลที่มี — ')+'สีมาจากจุดตัวอย่าง 7×7 ช่อง (ช่องละประมาณ '+Math.round(dy*111)+' กม.) แตะช่องสีเพื่อดูเหตุผล ไม่ใช่ขอบเขตน้ำท่วมจริง พื้นที่ไม่มีสีหมายถึงไม่พบสัญญาณเสี่ยงจากข้อมูลนี้ ไม่ได้แปลว่าปลอดภัย';
   $('lg').hidden=$('hzn').hidden=$('hzx').hidden=false;$('hz').textContent='อัปเดตสีในมุมมองนี้';
  }catch(e){hzOff();note('คำนวณความอันตรายไม่ได้ ('+e.message+') ลองใหม่อีกครั้ง',1)}
  $('hz').disabled=false;
