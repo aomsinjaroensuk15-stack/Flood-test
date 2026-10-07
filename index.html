@@ -21,6 +21,9 @@
 <p class="tip">หรือแตะบนแผนที่เพื่อเลือกจุดที่ต้องการเช็ก</p>
 <div id="places"></div>
 <div id="map" role="application" aria-label="แผนที่เลือกตำแหน่ง"></div>
+<div class="acts"><button id="hz" type="button">แสดงความอันตราย</button><button id="hzx" type="button" hidden>ซ่อนสี</button></div>
+<div id="lg" hidden></div>
+<p id="hzn" class="tip" hidden></p>
 <section id="card" class="card unknown" aria-live="polite"></section>
 <p id="basis" class="tip"></p>
 <section id="when" hidden><h2>ช่วงเวลาเสี่ยงที่คาด</h2><p id="wt"></p><p id="wn" class="tip"></p><p class="tip">เป็นการประมาณจากยอดฝนพยากรณ์และโมเดลแม่น้ำ ไม่ใช่การทำนายเวลาที่น้ำจะท่วมจริง น้ำอาจท่วมเร็วหรือช้ากว่านี้ได้</p></section>
@@ -111,25 +114,57 @@ function render(){
  if(a.dr!=null)rows.push(['น้ำในแม่น้ำวันนี้ (จำลอง)',a.dis.toFixed(1)+' ม³/วิ'],['ยอดสูงสุดใน 7 วัน',a.dpk.toFixed(1)+' ม³/วิ '+(a.dpd?'(อีก '+a.dpd+' วัน)':'(วันนี้)')],['เทียบสูงสุดรอบ 90 วัน',Math.round(a.dr*100)+'% · '+TR[a.dtr]]);
  $('rows').replaceChildren(...rows.map(([k,x])=>{const d=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=k;dd.textContent=x;d.append(dt,dd);return d}));
 }
-async function rain(lat,lon){
- const q='latitude='+lat.toFixed(3)+'&longitude='+lon.toFixed(3);
- const [R,F,E]=await Promise.allSettled([
-  fetch('https://api.open-meteo.com/v1/forecast?'+q+'&hourly=precipitation&daily=precipitation_sum&past_days=1&forecast_days=7&timeformat=unixtime&timezone=Asia%2FBangkok').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}),
-  fetch('https://flood-api.open-meteo.com/v1/flood?'+q+'&daily=river_discharge&past_days=90&forecast_days=7').then(r=>r.ok?r.json():null),
-  fetch('https://api.open-meteo.com/v1/elevation?'+q).then(r=>r.ok?r.json():null)]);
- if(R.status!=='fulfilled')throw R.reason;
- const h=R.value.hourly,n=Date.now()/1e3;let p=0,f=0,c=0;
+const FC='https://api.open-meteo.com/v1/forecast?hourly=precipitation&daily=precipitation_sum&past_days=1&forecast_days=7&timeformat=unixtime&timezone=Asia%2FBangkok&';
+const FL='https://flood-api.open-meteo.com/v1/flood?daily=river_discharge&past_days=90&forecast_days=7&';
+const J=r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json()};
+function calc(R,F){ // แปลงข้อมูลดิบ 1 จุดเป็นค่าที่ใช้ประเมิน
+ const h=R.hourly,n=Date.now()/1e3;let p=0,f=0,c=0;
  h.time.forEach((t,i)=>{const x=h.precipitation[i];if(x==null)return;c++;if(t>n-86400&&t<=n)p+=x;else if(t>n&&t<=n+172800)f+=x});
  if(!c)throw new Error('ไม่มีข้อมูลฝน');
  const fu=[];h.time.forEach((t,i)=>{if(t>n&&t<=n+604800)fu.push([t,h.precipitation[i]||0])});
  let bm=0,bt=0;for(let i=0;i+6<=fu.length;i++){let q=0;for(let k=0;k<6;k++)q+=fu[i+k][1];if(q>bm){bm=q;bt=fu[i][0]}}
- const o={pk6:bm>0?{t:bt,mm:Math.round(bm*10)/10}:null,rain24:Math.round(p*10)/10,rain48:Math.round(f*10)/10,days:(R.value.daily.precipitation_sum||[]).slice(1,8).map(x=>x==null?null:Math.round(x))};
- try{const z=E.value.elevation[0];if(z!=null)o.elev=Math.round(z)}catch(ex){}
- try{const a=F.value.daily.river_discharge,b=a.slice(0,a.length-7).filter(x=>x!=null),g=a.slice(a.length-7).filter(x=>x!=null);
+ const o={pk6:bm>0?{t:bt,mm:Math.round(bm*10)/10}:null,rain24:Math.round(p*10)/10,rain48:Math.round(f*10)/10,days:(R.daily.precipitation_sum||[]).slice(1,8).map(x=>x==null?null:Math.round(x))};
+ try{const a=F.daily.river_discharge,b=a.slice(0,a.length-7).filter(x=>x!=null),g=a.slice(a.length-7).filter(x=>x!=null);
   if(b.length>30&&g.length){const mx=Math.max(...b),pk=Math.max(...g);
-   if(mx>=1){o.dis=g[0];o.dpk=pk;o.dpd=g.indexOf(pk);o.dr=pk/mx;const d=g[g.length-1]-g[0];o.dtr=d>.1*g[0]?'up':d<-.1*g[0]?'down':'steady'}}}catch(e){}
+   if(mx>=1){o.dis=g[0];o.dpk=pk;o.dpd=g.indexOf(pk);o.dr=pk/mx;const d=g[g.length-1]-g[0];o.dtr=d>.1*g[0]?'up':d<-.1*g[0]?'down':'steady'}}}catch(ex){}
  return o;
 }
+async function rain(lat,lon){
+ const q='latitude='+lat.toFixed(3)+'&longitude='+lon.toFixed(3);
+ const [R,F,E]=await Promise.allSettled([fetch(FC+q).then(J),fetch(FL+q).then(r=>r.ok?r.json():null),fetch('https://api.open-meteo.com/v1/elevation?'+q).then(r=>r.ok?r.json():null)]);
+ if(R.status!=='fulfilled')throw R.reason;
+ const o=calc(R.value,F.value);
+ try{const z=E.value.elevation[0];if(z!=null)o.elev=Math.round(z)}catch(ex){}
+ return o;
+}
+async function batch(P){ // หลายจุดในคำขอเดียว (Open-Meteo คืนเป็นลิสต์เมื่อให้หลายพิกัด)
+ const q='latitude='+P.map(p=>p[0].toFixed(3)).join(',')+'&longitude='+P.map(p=>p[1].toFixed(3)).join(',');
+ const [R,F]=await Promise.allSettled([fetch(FC+q).then(J),fetch(FL+q).then(r=>r.ok?r.json():null)]);
+ if(R.status!=='fulfilled')throw R.reason;
+ const rv=[].concat(R.value),fv=F.status==='fulfilled'&&F.value?[].concat(F.value):[];
+ return P.map((_,i)=>{try{return calc(rv[i],fv[i])}catch(ex){return null}});
+}
+const HZ=[null,['เฝ้าระวัง','#F2B705'],['เสี่ยง','#F97316'],['อันตราย','#DC2626']];
+let hzG=null;
+function hzOff(){if(hzG)hzG.clearLayers();$('hz').textContent='แสดงความอันตราย';$('hzx').hidden=$('lg').hidden=$('hzn').hidden=true}
+async function hazard(){
+ if(!map)return;
+ const b=map.getBounds(),N=7,s=b.getSouth(),w=b.getWest(),dy=(b.getNorth()-s)/N,dx=(b.getEast()-w)/N,P=[];
+ for(let i=0;i<N;i++)for(let j=0;j<N;j++)P.push([s+dy*(i+.5),w+dx*(j+.5)]);
+ $('hz').disabled=true;$('hz').textContent='กำลังคำนวณ…';note('');
+ try{
+  const A=await batch(P),cnt=[0,0,0,0];hzG.clearLayers();
+  A.forEach((o,k)=>{
+   if(!o)return;const x=assess(o,Date.now());if(x.s<1)return;cnt[x.s]++;
+   const[y,z]=P[k],e=document.createElement('span');e.textContent=HZ[x.s][0]+': '+x.why;
+   L.rectangle([[y-dy/2,z-dx/2],[y+dy/2,z+dx/2]],{stroke:false,fillColor:HZ[x.s][1],fillOpacity:.42}).bindPopup(e).addTo(hzG)});
+  $('lg').replaceChildren(...[1,2,3].map(l=>{const c=document.createElement('span'),d=document.createElement('i');d.style.background=HZ[l][1];c.append(d,HZ[l][0]+' '+cnt[l]+' ช่อง');return c}));
+  $('hzn').textContent=(cnt[1]+cnt[2]+cnt[3]?'':'ไม่พบพื้นที่เฝ้าระวังขึ้นไปในกรอบแผนที่นี้ตามข้อมูลที่มี — ')+'สีมาจากจุดตัวอย่าง 7×7 ช่อง (ช่องละประมาณ '+Math.round(dy*111)+' กม.) แตะช่องสีเพื่อดูเหตุผล ไม่ใช่ขอบเขตน้ำท่วมจริง พื้นที่ไม่มีสีหมายถึงไม่พบสัญญาณเสี่ยงจากข้อมูลนี้ ไม่ได้แปลว่าปลอดภัย';
+  $('lg').hidden=$('hzn').hidden=$('hzx').hidden=false;$('hz').textContent='อัปเดตสีในมุมมองนี้';
+ }catch(e){hzOff();note('คำนวณความอันตรายไม่ได้ ('+e.message+') ลองใหม่อีกครั้ง',1)}
+ $('hz').disabled=false;
+}
+$('hz').onclick=hazard;$('hzx').onclick=hzOff;
 async function pick(lat,lon,label){
  if(map){if(mk)mk.setLatLng([lat,lon]);else mk=L.circleMarker([lat,lon],{radius:9,color:'#fff',weight:3,fillColor:'#1B7A8C',fillOpacity:1}).addTo(map)}
  $('em').hidden=true;if(emG)emG.clearLayers();
@@ -197,9 +232,9 @@ if(window.L){
  map=L.map('map').setView(cur&&cur.lat?[cur.lat,cur.lon]:[13.2,101],cur&&cur.lat?11:6);
  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors'}).addTo(map);
  if(cur&&cur.lat)mk=L.circleMarker([cur.lat,cur.lon],{radius:9,color:'#fff',weight:3,fillColor:'#1B7A8C',fillOpacity:1}).addTo(map);
- emG=L.layerGroup().addTo(map);
+ emG=L.layerGroup().addTo(map);hzG=L.layerGroup().addTo(map);
  map.on('click',e=>pick(e.latlng.lat,e.latlng.lng,'จุดที่เลือกบนแผนที่'));
-}else{$('map').hidden=true;note('โหลดแผนที่ไม่ได้ (อาจไม่มีอินเทอร์เน็ต) ยังดูผลล่าสุดที่เก็บไว้ได้')}
+}else{$('map').hidden=true;$('hz').hidden=true;note('โหลดแผนที่ไม่ได้ (อาจไม่มีอินเทอร์เน็ต) ยังดูผลล่าสุดที่เก็บไว้ได้')}
 $('upd').textContent=cur?'':'พร้อมใช้งาน';
 places();render();loadAreas();
 setInterval(()=>cur&&render(),6e4);
