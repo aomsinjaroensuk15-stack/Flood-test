@@ -168,3 +168,4 @@ details li::marker{color:var(--accent)}
 #lg{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0}
 #lg span{display:inline-flex;align-items:center;gap:.45rem;padding:.3rem .75rem;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:.85rem;font-weight:700}
 #lg i{width:.85rem;height:.85rem;border-radius:50%}
+#hzn{white-space:pre-line}
