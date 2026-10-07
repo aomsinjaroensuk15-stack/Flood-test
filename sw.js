@@ -1,5 +1,5 @@
-const C='flood-v1';
-self.addEventListener('install',e=>{self.skipWaiting()});
+const C='flood-v2',S=['./','index.html','style.css','manifest.json'];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(S)).catch(()=>{}));self.skipWaiting()});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==C).map(x=>caches.delete(x)))).then(()=>self.clients.claim())));
 // network-first: ได้ข้อมูลล่าสุดเสมอ ถ้าออฟไลน์ค่อยใช้ที่เก็บไว้
 self.addEventListener('fetch',e=>{
