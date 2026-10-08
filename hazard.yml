@@ -1,0 +1,20 @@
+name: อัปเดตความเสี่ยงทั้งประเทศ
+on:
+  schedule:
+    - cron: '15 */6 * * *'   # ทุก 6 ชั่วโมง
+  workflow_dispatch:         # กดรันเองได้จากแท็บ Actions
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: mkdir -p data && python3 fetch/hazard.py
+      - run: |
+          git config user.name "flood-bot"
+          git config user.email "flood-bot@users.noreply.github.com"
+          git add data/hazard.json
+          git diff --cached --quiet && exit 0
+          git commit -m "update hazard.json"
+          git push
