@@ -148,7 +148,30 @@ async function batch(P){ // หลายจุดในคำขอเดีย�
 const HZ=[null,['เฝ้าระวัง','#F2B705'],['เสี่ยง','#F97316'],['อันตราย','#DC2626']];
 let hzG=null;
 function hzOff(){if(hzG)hzG.clearLayers();$('hz').textContent='แสดงความอันตราย';$('hzx').hidden=$('lg').hidden=$('hzn').hidden=true}
+let NAT;
+async function natl(){ // ภาพรวมทั้งประเทศที่คำนวณไว้ล่วงหน้า (fetch/hazard.py) ไม่ขึ้นกับการซูม
+ try{const r=await fetch('data/hazard.json',{cache:'no-cache'});return r.ok?await r.json():null}catch(e){return null}
+}
+function drawNat(H,age){
+ hzG.clearLayers();const cnt=[0,0,0,0],h=H.step/2;let nd=0;
+ for(let k=0;k<H.rows*H.cols;k++){const c=H.lv[k];if(c==='9'){nd++;continue}const s=+c;if(s<1)continue;cnt[s]++;
+  const y=H.lat0+Math.floor(k/H.cols)*H.step,x=H.lon0+(k%H.cols)*H.step,e=document.createElement('span');
+  e.textContent=HZ[s][0]+': '+(H.why[k]||'');
+  L.rectangle([[y-h,x-h],[y+h,x+h]],{stroke:false,fillColor:HZ[s][1],fillOpacity:.42}).bindPopup(e).addTo(hzG)}
+ $('lg').replaceChildren(...[1,2,3].map(l=>{const c=document.createElement('span'),d=document.createElement('i');d.style.background=HZ[l][1];c.append(d,HZ[l][0]+' '+cnt[l]+' ช่อง');return c}));
+ $('hzn').textContent='ภาพรวมทั้งประเทศ ช่องละประมาณ '+Math.round(H.step*111)+' กม. อัปเดต '+(age<1?'ไม่ถึงชั่วโมง':Math.round(age)+' ชม.')+'ที่แล้ว'+(age>12?' (ข้อมูลค่อนข้างเก่า)':'')+' · ไม่มีข้อมูล '+nd+' ช่อง\nสีมาจากจุดกึ่งกลางของแต่ละช่อง แตะช่องสีเพื่อดูเหตุผล ไม่ใช่ขอบเขตน้ำท่วมจริง ช่องที่เป็นทะเลหรือประเทศเพื่อนบ้านก็ถูกประเมินด้วย พื้นที่ไม่มีสีไม่ได้แปลว่าปลอดภัย';
+ $('lg').hidden=$('hzn').hidden=$('hzx').hidden=false;$('hz').textContent='รีเฟรชสีทั้งประเทศ';
+}
 async function hazard(){
+ if(!map)return;
+ $('hz').disabled=true;
+ const H=await natl();
+ if(H){const age=(Date.now()-new Date(H.updated))/36e5;
+  if(age<=24){drawNat(H,age);$('hz').disabled=false;return}}
+ $('hz').disabled=false;
+ return hazardLive(); // ยังไม่มีไฟล์ภาพรวม (หรือเก่าเกิน 24 ชม.) ใช้การคำนวณสดเฉพาะกรอบแผนที่แทน
+}
+async function hazardLive(){
  if(!map)return;
  const b=map.getBounds(),N=7,s=b.getSouth(),w=b.getWest(),dy=(b.getNorth()-s)/N,dx=(b.getEast()-w)/N,P=[];
  for(let i=0;i<N;i++)for(let j=0;j<N;j++)P.push([s+dy*(i+.5),w+dx*(j+.5)]);
