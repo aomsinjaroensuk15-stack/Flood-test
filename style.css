@@ -315,10 +315,13 @@ body::before{
     radial-gradient(45rem 30rem at 85% -10%,color-mix(in srgb,var(--nebula2) 55%,transparent),transparent 60%),
     radial-gradient(40rem 26rem at -10% 30%,color-mix(in srgb,var(--nebula1) 50%,transparent),transparent 60%),
     radial-gradient(35rem 35rem at 60% 110%,color-mix(in srgb,var(--nebula3) 45%,transparent),transparent 65%),
+    radial-gradient(70% 40% at 15% -8%,rgba(52,227,154,.16),transparent 70%),
+    radial-gradient(70% 45% at 95% 108%,rgba(244,114,182,.14),transparent 70%),
+    radial-gradient(55% 30% at 50% -15%,rgba(77,216,255,.12),transparent 70%),
     linear-gradient(115deg,transparent 38%,rgba(170,205,255,.06) 46%,rgba(215,190,255,.08) 50%,rgba(170,205,255,.06) 54%,transparent 62%),
     linear-gradient(180deg,var(--bg),var(--bg));
-  background-size:200% 200%,200% 200%,200% 200%,300% 300%,100% 100%;
-  animation:nebulaDrift 40s ease-in-out infinite alternate;
+  background-size:200% 200%,200% 200%,200% 200%,250% 250%,250% 250%,250% 250%,300% 300%,100% 100%;
+  animation:nebulaDrift 46s ease-in-out infinite alternate;
 }
 /* ชั้นที่ 4 — ฝุ่นดาวกระจายเบา ๆ เคลื่อนระยะใกล้ */
 body::after{
@@ -362,28 +365,12 @@ body::after{
 @keyframes twinkleFar{from{opacity:.35}50%{opacity:.7}to{opacity:.5}}
 @keyframes galaxySpin{to{transform:rotate(360deg)}}
 @keyframes nebulaDrift{
-  0%{background-position:0% 0%,0% 0%,0% 0%,0% 0%,0 0}
-  50%{background-position:60% 40%,40% 60%,50% 50%,50% 50%,0 0}
-  100%{background-position:100% 100%,100% 0%,0% 100%,100% 100%,0 0}
+  0%{background-position:0% 0%,0% 0%,0% 0%,0% 0%,100% 100%,50% 0%,0% 0%,0 0}
+  50%{background-position:60% 40%,40% 60%,50% 50%,50% 100%,0% 0%,50% 100%,50% 50%,0 0}
+  100%{background-position:100% 100%,100% 0%,0% 100%,100% 0%,100% 0%,50% 100%,100% 100%,0 0}
 }
 @keyframes stardust{to{transform:translate(60px,-90px)}}
 
-/* ============================ 🌠 หางดาวพุ่งผ่าน ============================ */
-/* ใช้ main::before / main::after เป็นสนามหางดาว 2 เส้น */
-main::before,main::after{
-  content:"";position:fixed;top:12%;left:-10%;width:9rem;height:2px;z-index:0;pointer-events:none;
-  background:linear-gradient(90deg,transparent,#fff,rgba(77,216,255,.9));
-  border-radius:999px;filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 14px var(--accent));
-  transform:rotate(-32deg);opacity:0;
-  animation:shoot 9s linear infinite;
-}
-main::after{top:38%;animation-delay:4.5s;animation-duration:12s;width:6rem}
-@keyframes shoot{
-  0%{transform:rotate(-32deg) translateX(0);opacity:0}
-  1%{opacity:1}
-  6%{transform:rotate(-32deg) translateX(120vw);opacity:0}
-  100%{transform:rotate(-32deg) translateX(120vw);opacity:0}
-}
 
 /* ============================ 📐 พื้นฐาน ============================ */
 [hidden]{display:none!important}
@@ -398,10 +385,15 @@ body{
 }
 main{max-width:34rem;margin:0 auto;padding:1.5rem 1rem 4rem;position:relative;z-index:1}
 h1{
-  margin:0;font-size:1.8rem;font-weight:800;line-height:1.3;color:#fff;
-  text-shadow:0 0 18px rgba(77,216,255,.65),0 0 46px rgba(139,92,246,.4);
-  letter-spacing:.02em;
+  margin:0;font-size:1.8rem;font-weight:800;line-height:1.3;letter-spacing:.02em;
+  background:linear-gradient(110deg,#FFFFFF 15%,#7EE7FF 35%,#C4B5FD 50%,#F9A8D4 62%,#FFFFFF 85%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  color:transparent;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 0 14px rgba(77,216,255,.55)) drop-shadow(0 0 40px rgba(139,92,246,.35));
+  animation:h1Shine 7s linear infinite;
 }
+@keyframes h1Shine{to{background-position:-220% 0}}
 h1::before{
   content:"";display:inline-block;width:1.4rem;height:1.4rem;margin-right:.55rem;vertical-align:-.14rem;
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 2S5 10 5 15a7 7 0 0014 0c0-5-7-13-7-13z'/%3E%3C/svg%3E") center/contain no-repeat;
@@ -578,7 +570,7 @@ button:active{transform:scale(.96)}
   position:relative;width:70%;min-height:6px;border-radius:.5rem .5rem .25rem .25rem;transform-origin:bottom;
   background:linear-gradient(180deg,color-mix(in srgb,var(--c) 55%,#fff),var(--c) 60%,color-mix(in srgb,var(--c) 70%,#000)));
   box-shadow:0 0 12px color-mix(in srgb,var(--c) 55%,transparent),0 0 26px color-mix(in srgb,var(--c) 30%,transparent);
-  animation:grow .8s cubic-bezier(.2,.8,.2,1) both;
+  animation:grow .8s cubic-bezier(.2,.8,.2,1) both, barGlow 3.4s ease-in-out infinite alternate;
   transition:filter .2s;
 }
 #days .bar::after{ /* หยดน้ำเรืองแสงด้านบนแท่ง */
@@ -729,8 +721,100 @@ details li::marker{color:var(--accent);text-shadow:0 0 6px var(--accent)}
   box-shadow:0 2px 10px rgba(0,0,0,.3);
 }
 #lg i{width:.85rem;height:.85rem;border-radius:50%;background:var(--c);
-  box-shadow:0 0 8px var(--c),0 0 16px color-mix(in srgb,var(--c) 50%,transparent)}
+  box-shadow:0 0 8px var(--c),0 0 16px color-mix(in srgb,var(--c) 50%,transparent);
+  transition:transform .2s}
+#lg span:hover i{transform:scale(1.3);animation:pulse 1.4s ease-out infinite}
 #hzn{white-space:pre-line}
+
+
+/* ============================ 🪐 ดาวเคราะห์ + ดวงจันทร์ (ตกแต่งจักรวาล) ============================ */
+/* ดาวเคราะห์พร้อมวงแหวน — ติดกับแผนที่เพราะอยู่บนหน้าเสมอ */
+#map::before{
+  content:"";position:fixed;top:5.2rem;right:5%;z-index:0;pointer-events:none;
+  width:5.6rem;height:5.6rem;border-radius:50%;
+  border:3px solid rgba(190,215,255,.38);
+  background:radial-gradient(circle at 32% 28%,#FFE9C9,#F2A65E 42%,#9B5DE5 72%,#241447 100%);
+  box-shadow:0 0 30px rgba(155,93,229,.5),0 0 70px rgba(242,166,94,.28),inset -12px -10px 26px rgba(0,0,10,.55);
+  transform:rotate(-16deg) scaleY(.42);
+  animation:planetBob 11s ease-in-out infinite alternate;
+}
+/* ดวงจันทร์โคจรรอบดาวเคราะห์ */
+#upd::before{
+  content:"";position:fixed;top:calc(5.2rem + 2.8rem - 5px);right:calc(5% + 2.8rem - 5px);z-index:0;pointer-events:none;
+  width:10px;height:10px;border-radius:50%;background:#EAF6FF;
+  box-shadow:0 0 10px #fff,0 0 22px rgba(126,231,255,.9);
+  animation:moonOrbit 22s linear infinite;
+}
+@keyframes planetBob{
+  from{transform:rotate(-16deg) scaleY(.42) translateY(0)}
+  to{transform:rotate(-14deg) scaleY(.42) translateY(-14px)}
+}
+@keyframes moonOrbit{
+  from{transform:rotate(0deg) translateX(4.6rem) rotate(0deg)}
+  to{transform:rotate(360deg) translateX(4.6rem) rotate(-360deg)}
+}
+
+/* ============================ 🛸 UFO ลอยผ่าน ============================ */
+#areas::before{
+  content:"";position:fixed;bottom:16%;left:-8%;z-index:0;pointer-events:none;
+  width:2.3rem;height:2.3rem;border-radius:50%;
+  background:radial-gradient(circle,rgba(200,245,255,.95),rgba(77,216,255,.25) 55%,transparent 72%);
+  filter:blur(1px) drop-shadow(0 0 14px rgba(77,216,255,.9));
+  opacity:0;
+  animation:ufo 42s linear infinite;
+  animation-delay:9s;
+}
+@keyframes ufo{
+  0%{transform:translate(0,0) scale(.8);opacity:0}
+  4%{opacity:.85}
+  20%{transform:translate(60vw,-9vh) scale(1);opacity:.85}
+  21%{opacity:0}
+  100%{transform:translate(120vw,-16vh) scale(.9);opacity:0}
+}
+
+/* ============================ ☄️ ฝนดาวตก 6 เส้น ============================ */
+h1::after,#upd::after,label::after,dl::before,details::after,#days::before{
+  content:"";position:fixed;left:-12%;z-index:0;pointer-events:none;
+  width:9.5rem;height:3px;border-radius:999px;opacity:0;
+  background:linear-gradient(90deg,transparent 5%,color-mix(in srgb,var(--accent) 55%,transparent) 55%,#fff 92%);
+  filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px var(--accent));
+  transform:rotate(-30deg);
+  animation:comet var(--cd,12s) linear infinite;
+  animation-delay:var(--cdel,0s);
+}
+h1::after{--cd:10s;--cdel:0s;top:9%;width:11rem}
+#upd::after{--cd:15s;--cdel:6s;top:20%;width:7rem;height:2px}
+label::after{--cd:12s;--cdel:2.5s;top:44%;width:8.5rem}
+dl::before{--cd:9s;--cdel:8.2s;top:4%;width:12rem;height:4px;
+  background:linear-gradient(90deg,transparent 5%,rgba(244,114,182,.6) 55%,#fff 92%);
+  filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px var(--accent3))}
+details::after{--cd:17s;--cdel:12s;top:62%;width:6.5rem;height:2px}
+#days::before{--cd:11s;--cdel:4.4s;top:31%;width:10rem;height:3px;
+  background:linear-gradient(90deg,transparent 5%,rgba(139,92,246,.6) 55%,#fff 92%);
+  filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px var(--accent2))}
+@keyframes comet{
+  0%{transform:rotate(-30deg) translateX(0);opacity:0}
+  1.2%{opacity:1}
+  7%{transform:rotate(-30deg) translateX(125vw);opacity:0}
+  100%{transform:rotate(-30deg) translateX(125vw);opacity:0}
+}
+
+/* ============================ 💫 แสงหัวใจการ์ด + แท่งกราฟ ============================ */
+@keyframes barGlow{from{filter:brightness(.92)}to{filter:brightness(1.18)}}
+.card h2{animation:h2Pulse 3s ease-in-out infinite alternate}
+@keyframes h2Pulse{
+  from{text-shadow:0 0 12px color-mix(in srgb,var(--c) 45%,transparent)}
+  to{text-shadow:0 0 22px color-mix(in srgb,var(--c) 80%,transparent),0 0 46px color-mix(in srgb,var(--c) 40%,transparent)}
+}
+
+/* ============================ 📜 Scroll Reveal (progressive enhancement) ============================ */
+@supports (animation-timeline: view()){
+  dl,details,#days{
+    animation:rise .7s cubic-bezier(.2,.8,.2,1) both;
+    animation-timeline:view();
+    animation-range:entry 0% cover 28%;
+  }
+}
 
 /* ============================ ✨ ทัชสุดท้าย: scrollbar + selection ============================ */
 ::selection{background:color-mix(in srgb,var(--accent) 40%,transparent);color:#fff;text-shadow:none}
