@@ -233,14 +233,31 @@ async function overview(){
 }
 const EMT={hospital:['โรงพยาบาล','#D92D20'],police:['ตำรวจ','#1D4ED8'],fire_station:['ดับเพลิง','#EA580C']};
 const hav=(a,b,c,d)=>{const r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,h=Math.sin(x/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+// เซิร์ฟเวอร์ Overpass สำรอง — ถ้าตัวแรก 504/ล่ม จะสลับอัตโนมัติ
+const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
+async function fetchOV(q){
+ let last;
+ for(const u of OVP){
+  try{
+   const r=await fetch(u+'?data='+encodeURIComponent(q),{signal:AbortSignal.timeout?AbortSignal.timeout(20000):undefined});
+   if(r.ok)return await r.json();
+   last=new Error('HTTP '+r.status);
+  }catch(e){last=e}
+ }
+ throw last;
+}
+let emCache=null; // กันคนสแปมปุ่มรัว ๆ ในจุดเดียว
 async function emerg(){ // ค้นเฉพาะตอนกดปุ่ม เพื่อไม่ภาระเซิร์ฟเวอร์สาธารณะของ Overpass
  if(!cur||!cur.lat)return;
  const{lat,lon}=cur;$('em').hidden=false;$('eml').textContent='กำลังค้นหา…';
  try{
-  const q='[out:json][timeout:15];nwr["amenity"~"^(hospital|police|fire_station)$"](around:8000,'+lat+','+lon+');out center 80;';
-  const r=await fetch('https://overpass-api.de/api/interpreter?data='+encodeURIComponent(q));
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const all=((await r.json()).elements||[]).map(e=>{const g=e.tags||{},y=e.lat??(e.center&&e.center.lat),x=e.lon??(e.center&&e.center.lon);return y==null||!EMT[g.amenity]?null:{n:g['name:th']||g.name||EMT[g.amenity][0],k:g.amenity,y,x,d:hav(lat,lon,y,x)}}).filter(Boolean).sort((a,b)=>a.d-b.d);
+  let data;
+  if(emCache&&Math.abs(emCache.lat-lat)<.005&&Math.abs(emCache.lon-lon)<.005&&(Date.now()-emCache.t)<6e5)data=emCache.data; // ใช้ผลเดิมถ้าเพิ่งค้นจุดนี้
+  else{
+   const q='[out:json][timeout:20];node["amenity"~"^(hospital|police|fire_station)$"](around:6000,'+lat+','+lon+');out 60;'; // node อย่างเดียว = เบากว่า nwr ~3 เท่า
+   data=await fetchOV(q);emCache={lat,lon,t:Date.now(),data};
+  }
+  const all=(data.elements||[]).map(e=>{const g=e.tags||{},y=e.lat??(e.center&&e.center.lat),x=e.lon??(e.center&&e.center.lon);return y==null||!EMT[g.amenity]?null:{n:g['name:th']||g.name||EMT[g.amenity][0],k:g.amenity,y,x,d:hav(lat,lon,y,x)}}).filter(Boolean).sort((a,b)=>a.d-b.d);
   const c={},top=all.filter(p=>(c[p.k]=(c[p.k]||0)+1)<=3);
   if(emG){emG.clearLayers();top.forEach(p=>{const s=document.createElement('span');s.textContent=p.n+' · '+EMT[p.k][0];L.circleMarker([p.y,p.x],{radius:7,color:'#fff',weight:2,fillColor:EMT[p.k][1],fillOpacity:1}).bindPopup(s).addTo(emG)})}
   $('eml').replaceChildren(...(top.length?top.map(p=>{
@@ -248,7 +265,7 @@ async function emerg(){ // ค้นเฉพาะตอนกดปุ่ม �
    a.className='emi';a.href='https://www.google.com/maps/dir/?api=1&destination='+p.y+','+p.x;a.target='_blank';a.rel='noopener';
    n.textContent=p.n;s.textContent=EMT[p.k][0];i.textContent=p.d.toFixed(1)+' กม. ›';w.append(n,s);a.append(w,i);return a
   }):[Object.assign(document.createElement('p'),{className:'tip',textContent:'ไม่พบสถานที่ในรัศมี 8 กม. (ข้อมูล OpenStreetMap อาจไม่ครบ)'})]));
- }catch(e){$('eml').textContent='ค้นหาไม่ได้ ('+e.message+') หากฉุกเฉินให้โทร 1669'}
+ }catch(e){$('eml').textContent='ค้นหาไม่ได้ ('+e.message+' — เซิร์ฟเวอร์ข้อมูลแผนที่ทำงานหนัก) รอสักครู่แล้วกดปุ่มอีกครั้ง หากฉุกเฉินให้โทร 1669 / 1784 ทันที'}
 }
 $('ovb').onclick=overview;$('emb').onclick=emerg;
 $('save').onclick=()=>{if(!cur||!cur.lat)return;const n=(prompt('ตั้งชื่อสถานที่ (เช่น บ้าน)',cur.label||'')||'').trim().slice(0,20);if(!n)return;PL=PL.filter(p=>p.name!==n);PL.unshift({name:n,lat:cur.lat,lon:cur.lon});PL=PL.slice(0,6);sp();places()};
