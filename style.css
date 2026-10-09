@@ -825,3 +825,31 @@ details::after{--cd:17s;--cdel:12s;top:62%;width:6.5rem;height:2px}
   border-radius:999px;border:2px solid var(--bg);
   box-shadow:0 0 10px rgba(77,216,255,.4);
 }
+
+/* ============================ 🚀 ระบบเสริมอวกาศ (ใช้คู่ space-extra.js) ============================ */
+/* แถบพลังงานสะสมด้านบน */
+#prog{position:fixed;top:0;left:0;height:3px;width:0;z-index:9999;pointer-events:none;
+  background:linear-gradient(90deg,var(--accent),var(--accent2),var(--accent3));
+  box-shadow:0 0 10px var(--accent),0 0 22px color-mix(in srgb,var(--accent2) 60%,transparent);
+  border-radius:0 3px 3px 0}
+
+/* ทางเท้าดาวตามนิ้ว */
+.trail{position:fixed;width:6px;height:6px;border-radius:50%;z-index:9997;pointer-events:none;
+  animation:trailFade .7s ease-out forwards}
+@keyframes trailFade{to{transform:scale(0) translateY(12px);opacity:0}}
+
+/* ฝนตกบนกราฟ 7 วัน */
+#days{position:relative}
+#days.raining{overflow:hidden}
+#days.raining::after{content:"";position:absolute;inset:-25% 0;pointer-events:none;opacity:.55;
+  background:repeating-linear-gradient(12deg,transparent 0 13px,rgba(170,225,255,.28) 13px 14px,transparent 14px 27px);
+  background-size:100% 54px;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 25%);
+  mask-image:linear-gradient(180deg,transparent,#000 25%);
+  animation:rainFall .45s linear infinite}
+@keyframes rainFall{to{background-position:0 54px}}
+
+/* อนุภาคระเบิดเตือนภัย */
+.burst{position:fixed;width:8px;height:8px;border-radius:50%;z-index:9998;pointer-events:none;
+  box-shadow:0 0 10px currentColor;animation:burstFly .85s cubic-bezier(.15,.8,.3,1) forwards}
+@keyframes burstFly{to{transform:translate(var(--dx),var(--dy)) scale(0);opacity:0}}
