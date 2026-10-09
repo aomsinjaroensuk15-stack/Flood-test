@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=1.2">
 </head>
 <body>
 <main>
@@ -48,6 +48,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+console.info('%cเช็กน้ำท่วม v'+('1.2')+' 🚀','color:#4DD8FF');
 // เกณฑ์เริ่มต้น (placeholder) — ต้องตรวจกับเกณฑ์ทางการก่อนเปิดใช้จริง
 const T={rain24:{watch:35,risk:90},rain48:{watch:50,risk:120},staleMin:180};
 const LV=[
@@ -231,41 +232,75 @@ async function overview(){
   b.onclick=()=>{if(map)map.setView([p.lat,p.lon],11);pick(p.lat,p.lon,p.name);scrollTo({top:0,behavior:'smooth'})};
   return b}));
 }
+const APPV='1.2'; // เปลี่ยนทุกครั้งที่แก้ไฟล์ เพื่อยืนยันว่าเครื่องรันเวอร์ชันใหม่ (ดูใน console)
 const EMT={hospital:['โรงพยาบาล','#D92D20'],police:['ตำรวจ','#1D4ED8'],fire_station:['ดับเพลิง','#EA580C']};
 const hav=(a,b,c,d)=>{const r=Math.PI/180,x=(c-a)*r,y=(d-b)*r,h=Math.sin(x/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin(y/2)**2;return 12742*Math.asin(Math.sqrt(h))};
-// เซิร์ฟเวอร์ Overpass สำรอง — ถ้าตัวแรก 504/ล่ม จะสลับอัตโนมัติ
+// ── ชั้น 1: Overpass 3 กระจกเงา ใช้ POST (แน่นกว่า GET ผ่านพร็อกซีมือถือ) ──
 const OVP=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://overpass.private.coffee/api/interpreter'];
 async function fetchOV(q){
  let last;
  for(const u of OVP){
   try{
-   const r=await fetch(u+'?data='+encodeURIComponent(q),{signal:AbortSignal.timeout?AbortSignal.timeout(20000):undefined});
+   const sig=(typeof AbortSignal!=='undefined'&&AbortSignal.timeout)?AbortSignal.timeout(25000):undefined;
+   const r=await fetch(u,{method:'POST',body:'data='+encodeURIComponent(q),signal:sig});
    if(r.ok)return await r.json();
    last=new Error('HTTP '+r.status);
   }catch(e){last=e}
  }
  throw last;
 }
-let emCache=null; // กันคนสแปมปุ่มรัว ๆ ในจุดเดียว
-async function emerg(){ // ค้นเฉพาะตอนกดปุ่ม เพื่อไม่ภาระเซิร์ฟเวอร์สาธารณะของ Overpass
+// ── ชั้น 2: Nominatim (เซิร์ฟเวอร์หลักของ OpenStreetMap คนละตัวกับ Overpass) ──
+async function nominatim(lat,lon){
+ const b=.07, // กรอบ ~7 กม.
+ vb=(lon-b)+','+(lat+b)+','+(lon+b)+','+(lat-b),
+ out=[];
+ for(const a of ['hospital','police','fire_station']){
+  try{
+   const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&amenity='+a+'&viewbox='+vb+'&bounded=1&accept-language=th');
+   if(!r.ok)continue;
+   (await r.json()).forEach(p=>out.push({n:(p.display_name||'').split(',')[0],k:a,y:+p.lat,x:+p.lon,d:hav(lat,lon,+p.lat,+p.lon)}));
+  }catch(e){}
+  await new Promise(r=>setTimeout(r,1050)); // Nominatim ขอให้ยิงไม่เกิน 1 ครั้ง/วินาที
+ }
+ return out.filter(p=>EMT[p.k]&&p.n).sort((a,b)=>a.d-b.d);
+}
+let emCache=null;
+async function emerg(){
  if(!cur||!cur.lat)return;
  const{lat,lon}=cur;$('em').hidden=false;$('eml').textContent='กำลังค้นหา…';
- try{
-  let data;
-  if(emCache&&Math.abs(emCache.lat-lat)<.005&&Math.abs(emCache.lon-lon)<.005&&(Date.now()-emCache.t)<6e5)data=emCache.data; // ใช้ผลเดิมถ้าเพิ่งค้นจุดนี้
-  else{
-   const q='[out:json][timeout:20];node["amenity"~"^(hospital|police|fire_station)$"](around:6000,'+lat+','+lon+');out 60;'; // node อย่างเดียว = เบากว่า nwr ~3 เท่า
-   data=await fetchOV(q);emCache={lat,lon,t:Date.now(),data};
+ let all=null;
+ if(emCache&&Math.abs(emCache.lat-lat)<.005&&Math.abs(emCache.lon-lon)<.005&&(Date.now()-emCache.t)<6e5)
+  all=emCache.all; // กันสแปมปุ่มรัว ๆ ในจุดเดียว: ใช้ผลเดิม 5 นาที
+ else{
+  try{
+   const q='[out:json][timeout:25];node["amenity"~"^(hospital|police|fire_station)$"](around:6000,'+lat+','+lon+');out 60;';
+   const d=await fetchOV(q);
+   all=(d.elements||[]).map(e=>{const g=e.tags||{},y=e.lat??(e.center&&e.center.lat),x=e.lon??(e.center&&e.center.lon);return y==null||!EMT[g.amenity]?null:{n:g['name:th']||g.name||EMT[g.amenity][0],k:g.amenity,y,x,d:hav(lat,lon,y,x)}}).filter(Boolean).sort((a,b)=>a.d-b.d);
+  }catch(e){
+   try{all=await nominatim(lat,lon)}catch(e2){all=null}
   }
-  const all=(data.elements||[]).map(e=>{const g=e.tags||{},y=e.lat??(e.center&&e.center.lat),x=e.lon??(e.center&&e.center.lon);return y==null||!EMT[g.amenity]?null:{n:g['name:th']||g.name||EMT[g.amenity][0],k:g.amenity,y,x,d:hav(lat,lon,y,x)}}).filter(Boolean).sort((a,b)=>a.d-b.d);
-  const c={},top=all.filter(p=>(c[p.k]=(c[p.k]||0)+1)<=3);
-  if(emG){emG.clearLayers();top.forEach(p=>{const s=document.createElement('span');s.textContent=p.n+' · '+EMT[p.k][0];L.circleMarker([p.y,p.x],{radius:7,color:'#fff',weight:2,fillColor:EMT[p.k][1],fillOpacity:1}).bindPopup(s).addTo(emG)})}
-  $('eml').replaceChildren(...(top.length?top.map(p=>{
+  emCache={lat,lon,t:Date.now(),all};
+ }
+ const c={},top=(all||[]).filter(p=>(c[p.k]=(c[p.k]||0)+1)<=3);
+ if(emG){emG.clearLayers();top.slice(0,12).forEach(p=>{const s=document.createElement('span');s.textContent=p.n+' · '+EMT[p.k][0];L.circleMarker([p.y,p.x],{radius:7,color:'#fff',weight:2,fillColor:EMT[p.k][1],fillOpacity:1}).bindPopup(s).addTo(emG)})}
+ if(top.length){
+  $('eml').replaceChildren(...top.map(p=>{
    const a=document.createElement('a'),w=document.createElement('div'),n=document.createElement('b'),s=document.createElement('small'),i=document.createElement('i');
    a.className='emi';a.href='https://www.google.com/maps/dir/?api=1&destination='+p.y+','+p.x;a.target='_blank';a.rel='noopener';
    n.textContent=p.n;s.textContent=EMT[p.k][0];i.textContent=p.d.toFixed(1)+' กม. ›';w.append(n,s);a.append(w,i);return a
-  }):[Object.assign(document.createElement('p'),{className:'tip',textContent:'ไม่พบสถานที่ในรัศมี 8 กม. (ข้อมูล OpenStreetMap อาจไม่ครบ)'})]));
- }catch(e){$('eml').textContent='ค้นหาไม่ได้ ('+e.message+' — เซิร์ฟเวอร์ข้อมูลแผนที่ทำงานหนัก) รอสักครู่แล้วกดปุ่มอีกครั้ง หากฉุกเฉินให้โทร 1669 / 1784 ทันที'}
+  }));
+  return;
+ }
+ // ── ชั้น 3: ถ้าทุกเซิร์ฟเวอร์ล้ม ส่งลิงก์ Google Maps ที่กดได้ทันที (ไม่พึ่ง API ใด ๆ) ──
+ const gm=(all&&all.length===0), // all=[] หมายถึงเซิร์ฟเวอร์ตอบแล้วแต่ไม่มีสถานที่
+ tip=Object.assign(document.createElement('p'),{className:'tip',
+  textContent:gm?'ไม่พบสถานที่ในรัศมี 6 กม. (ข้อมูล OpenStreetMap อาจไม่ครบ)':'เซิร์ฟเวอร์ข้อมูลแผนที่ (Overpass + Nominatim) ตอบสนองไม่ได้ชั่วคราว (v'+APPV+') — เปิดค้นหาใน Google Maps ด้านล่างแทนได้ทันที หากฉุกเฉินให้โทร 1669 / 1784'});
+ $('eml').replaceChildren(tip,...[['โรงพยาบาล','hospital'],['สถานีตำรวจ','police station'],['สถานีดับเพลิง','fire station']].map(([t,q])=>{
+  const a=document.createElement('a'),w=document.createElement('div'),n=document.createElement('b'),s=document.createElement('small'),i=document.createElement('i');
+  a.className='emi';a.target='_blank';a.rel='noopener';
+  a.href='https://www.google.com/maps/search/'+encodeURIComponent(q)+'/@'+lat+','+lon+',15z';
+  n.textContent=t;s.textContent='เปิดใน Google Maps';i.textContent='ค้นหาใกล้ฉัน ›';w.append(n,s);a.append(w,i);return a
+ }));
 }
 $('ovb').onclick=overview;$('emb').onclick=emerg;
 $('save').onclick=()=>{if(!cur||!cur.lat)return;const n=(prompt('ตั้งชื่อสถานที่ (เช่น บ้าน)',cur.label||'')||'').trim().slice(0,20);if(!n)return;PL=PL.filter(p=>p.name!==n);PL.unshift({name:n,lat:cur.lat,lon:cur.lon});PL=PL.slice(0,6);sp();places()};
@@ -281,9 +316,9 @@ if(window.L){
 $('upd').textContent=cur?'':'พร้อมใช้งาน';
 places();render();loadAreas();
 setInterval(()=>cur&&render(),6e4);
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){navigator.serviceWorker.register('sw.js').then(r=>r&&setInterval(()=>r.update(),36e5)).catch(()=>{})}
 </script>
-<script src="space-extra.js"></script>
+<script src="space-extra.js?v=1.2"></script>
 <script>
 /* ===== 🚀 ฟีเจอร์เสริม v1 — เกจระดับน้ำ / สรุปสัปดาห์ / เช็กลิสต์ / อัตโนมัติ / PWA ===== */
 (() => {
