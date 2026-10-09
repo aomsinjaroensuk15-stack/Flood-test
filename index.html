@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>เช็กน้ำท่วม</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0F2A3D">
+<meta name="theme-color" content="#04060F">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;800&display=swap" rel="stylesheet">
@@ -105,7 +105,7 @@ function render(){
  $('upd').textContent='อัปเดต '+ago+(cur.label?' · '+cur.label:'');
  $('basis').textContent=a.level_m!=null?'':a.dr!=null?'ประเมินจากฝนและปริมาณน้ำในแม่น้ำที่โมเดล GloFAS จำลอง (ความละเอียด ~5 กม. อาจเลือกแม่น้ำคลาดเคลื่อน ไม่ใช่ระดับน้ำจริงที่วัดได้) จึงไม่ได้แปลว่าน้ำจะไม่ท่วม':'ประเมินจากปริมาณฝนเท่านั้น ไม่มีข้อมูลแม่น้ำใกล้จุดนี้ จึงไม่ได้แปลว่าน้ำจะไม่ท่วม';
  const dv=a.days||[];$('dh').hidden=!dv.length;
- $('days').replaceChildren(...dv.map((x,i)=>{const d=document.createElement('div'),b=document.createElement('div'),n=document.createElement('b'),l=document.createElement('span');d.className='d '+(x>=T.rain24.risk?'risk':x>=T.rain24.watch?'watch':'ok');b.className='bar';b.style.height=Math.min(100,x||0)*.65+'%';n.textContent=x==null?'-':x;l.textContent=i?new Date(Date.now()+i*864e5).toLocaleDateString('th-TH',{weekday:'short'}):'วันนี้';d.append(n,b,l);return d}));
+ $('days').replaceChildren(...dv.map((x,i)=>{const d=document.createElement('div'),b=document.createElement('div'),n=document.createElement('b'),l=document.createElement('span');d.className='d '+(x>=T.rain24.risk?'risk':x>=T.rain24.watch?'watch':'ok');b.className='bar';b.style.height=(x||0)/Math.max(35,...dv.map(y=>y||0))*65+'%';n.textContent=x==null?'-':x;l.textContent=i?new Date(Date.now()+i*864e5).toLocaleDateString('th-TH',{weekday:'short'}):'วันนี้';d.append(n,b,l);return d}));
  {const w=when(a);$('when').hidden=r.s<0;$('wt').textContent=w.t;$('wn').textContent=w.n.join('\n')}
  $('save').hidden=$('emb').hidden=!cur.lat;$('share').hidden=false;
  const rows=[['ฝนสะสมย้อนหลัง 24 ชม.',v(a.rain24,'มม.')],['ฝนพยากรณ์ 48 ชม.ข้างหน้า',v(a.rain48,'มม.')]];
@@ -265,6 +265,77 @@ $('upd').textContent=cur?'':'พร้อมใช้งาน';
 places();render();loadAreas();
 setInterval(()=>cur&&render(),6e4);
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+<script src="space-extra.js"></script>
+<script>
+/* ===== 🚀 ฟีเจอร์เสริม v1 — เกจระดับน้ำ / สรุปสัปดาห์ / เช็กลิสต์ / อัตโนมัติ / PWA ===== */
+(() => {
+const $=id=>document.getElementById(id);
+
+/* 1) เกจวัดระดับน้ำเทียบเกณฑ์เตือนภัย */
+const g=document.createElement('section');g.id='gauge';g.hidden=true;
+$('card').after(g);
+function drawGauge(){
+ const a=(typeof cur!=='undefined')&&cur&&cur.a;
+ if(!a||a.level_m==null){g.hidden=true;return}
+ const wp=Math.min(100,a.warn_m/a.crit_m*100),pct=Math.min(100,Math.max(0,a.level_m/a.crit_m*100));
+ g.hidden=false;
+ g.innerHTML='<h2>ระดับน้ำเทียบเกณฑ์เตือนภัย</h2>'+
+ '<div class="gbar"><div class="gfill" style="width:'+pct+'%"></div><i class="gmark" style="left:'+wp+'%"></i></div>'+
+ '<div class="glab"><span>0 ม.</span><span>เตือน '+a.warn_m+' ม.</span><span>วิกฤต '+a.crit_m+' ม.</span></div>'+
+ '<p class="tip">ระดับปัจจุบัน '+a.level_m+' ม. · '+(TR[a.trend]||'ไม่มีข้อมูลแนวโน้ม')+'</p>';
+}
+
+/* 2) สรุปฝนสัปดาห์ + นับถอยหลังฝนหนักสุด */
+const wk=document.createElement('p');wk.className='tip';wk.id='wk';wk.hidden=true;
+$('days').after(wk);
+const pcd=document.createElement('p');pcd.className='tip';pcd.id='pcd';pcd.hidden=true;
+$('wn').after(pcd);
+function weekInfo(){
+ const a=(typeof cur!=='undefined')&&cur&&cur.a,dv=(a&&a.days)||[];
+ if(dv.length){const tot=dv.reduce((s,x)=>s+(x||0),0),mx=Math.max(...dv.map(x=>x||0)),di=dv.indexOf(mx);
+  wk.hidden=false;wk.textContent='🌧 ฝนสะสมพยากรณ์ 7 วัน: '+tot+' มม. · หนักสุด '+dl(di)+' ('+mx+' มม.)'}
+ else wk.hidden=true;
+ if(a&&a.pk6&&a.pk6.t*1000>Date.now()){
+  const ms=a.pk6.t*1000-Date.now(),h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4);
+  pcd.hidden=false;pcd.textContent='⏳ อีก '+(h?h+' ชม. ':'')+m+' นาที ฝนจะหนักสุด ('+a.pk6.mm+' มม./6 ชม.)'}
+ else pcd.hidden=true;
+}
+new MutationObserver(()=>{drawGauge();weekInfo()}).observe($('card'),{attributes:true,attributeFilter:['class']});
+setInterval(weekInfo,3e4);
+
+/* 3) เช็กลิสต์เตรียมตัว ติ๊กได้ จำไว้ในเครื่อง */
+try{
+ const saved=JSON.parse(localStorage.getItem('prep')||'{}');
+ document.querySelectorAll('details ul li').forEach((li,i)=>{
+  const c=document.createElement('input');c.type='checkbox';c.checked=!!saved[i];c.id='pp'+i;
+  const l=document.createElement('label');l.htmlFor='pp'+i;
+  l.style.cssText='display:flex;gap:.6rem;align-items:flex-start;margin:.35rem 0;font-weight:400;cursor:pointer';
+  l.append(c,li.textContent);li.replaceChildren(l);
+  c.onchange=()=>{saved[i]=c.checked;localStorage.setItem('prep',JSON.stringify(saved))};
+ });
+}catch(e){}
+
+/* 4) อัปเดตข้อมูลอัตโนมัติทุก 10 นาที (เฉพาะพิกัดสด + แท็บกำลังมองเห็น) */
+setInterval(()=>{
+ if(typeof cur!=='undefined'&&cur&&cur.lat&&document.visibilityState==='visible'&&(Date.now()-cur.ts)>9*6e4)
+  pick(cur.lat,cur.lon,cur.label);
+},6e5);
+
+/* 5) แจ้งสถานะออนไลน์/ออฟไลน์ */
+addEventListener('offline',()=>note('ออฟไลน์อยู่ — ข้อมูลอาจไม่อัปเดต ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต',1));
+addEventListener('online',()=>note('กลับมาออนไลน์แล้ว'));
+
+/* 6) ปุ่มติดตั้งแอป (PWA) */
+let bip=null;
+addEventListener('beforeinstallprompt',e=>{
+ e.preventDefault();bip=e;if($('inb'))return;
+ const b=document.createElement('button');b.id='inb';b.type='button';b.textContent='📲 ติดตั้งแอป';
+ b.style.cssText='margin:.25rem .4rem .25rem 0;padding:.55rem 1rem;border-radius:999px;border:1.5px solid var(--accent);background:var(--panel);color:var(--accent);font-weight:700;cursor:pointer;backdrop-filter:blur(8px)';
+ b.onclick=async()=>{if(!bip)return;bip.prompt();await bip.userChoice;b.remove()};
+ document.querySelector('.help').prepend(b);
+});
+})();
 </script>
 </body>
 </html>
