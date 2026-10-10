@@ -1,20 +1,51 @@
 name: อัปเดตความเสี่ยงทั้งประเทศ
+
 on:
   schedule:
-    - cron: '15 */6 * * *'   # ทุก 6 ชั่วโมง
+    - cron: '15 */12 * * *'   # วันละ 2 รอบ: 07:15 และ 19:15 น. เวลาไทย (เหมาะกับช่วงฝน + ประหยัดโควตา)
   workflow_dispatch:         # กดรันเองได้จากแท็บ Actions
+
 permissions:
   contents: write
+
+# กันรันซ้อนทับตัวเองถ้ารอบก่อนยังไม่จบ (สคริปต์ใช้เวลา ~8-10 นาที ตาม cron ใหม่ไม่น่าชน แต่กันไว้เผื่อกดรันเองพร้อมกัน)
+concurrency:
+  group: hazard
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30        # เผื่อ retry หลายรอบตอนโควตาหนัก
     steps:
       - uses: actions/checkout@v4
-      - run: mkdir -p data && python3 fetch/hazard.py
-      - run: |
+
+      - name: สร้างสรุปความเสี่ยง
+        run: |
+          mkdir -p data
+          # ลองรันสูงสุด 2 ครั้ง: ถ้ารอบแรกข้อมูลหายเกินครึ่ง (exit 1) ให้พัก 5 นาทีแล้วลองอีกครั้ง
+          for i in 1 2; do
+            python3 fetch/hazard.py && break
+            echo "::warning::รอบที่ $i ไม่สำเร็จ รอ 5 นาทีก่อนลองใหม่" >&2
+            [ $i -eq 1 ] && sleep 300
+          done
+
+      - name: อัปโหลดผลลัพธ์เก็บไว้ดู (เผื่อดีบัก)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hazard-json
+          path: data/hazard.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: commit และ push
+        run: |
           git config user.name "flood-bot"
           git config user.email "flood-bot@users.noreply.github.com"
+          # เผื่อไฟล์ไม่ถูกสร้าง (สคริพต์ exit 1 ก่อนเขียน) จะได้ไม่ commit โครงว่าง
+          [ -f data/hazard.json ] || { echo "::warning::ไม่มีไฟล์ hazard.json ข้ามการ commit"; exit 0; }
           git add data/hazard.json
-          git diff --cached --quiet && exit 0
+          git diff --cached --quiet && { echo "ข้อมูลไม่เปลี่ยน ไม่ต้อง commit"; exit 0; }
           git commit -m "update hazard.json"
           git push
