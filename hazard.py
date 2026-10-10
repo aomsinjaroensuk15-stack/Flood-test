@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
 """สร้าง data/hazard.json — ประเมินความเสี่ยงทั้งประเทศเป็นตาราง (ไม่ขึ้นกับการซูมของผู้ใช้)
 ใช้กฎเดียวกับ assess() ใน index.html: ฝน 24/48 ชม., ฝนรายวัน 7 วัน, น้ำในแม่น้ำ (GloFAS) เทียบ 90 วัน
-ค่า 0=ไม่พบสัญญาณเสี่ยง 1=เฝ้าระวัง 2=เสี่ยง 3=อันตราย 9=ไม่มีข้อมูล"""
-import json, time, datetime, urllib.request, sys
-STEP=0.4; LAT0,LAT1,LON0,LON1=5.5,20.5,97.3,105.7
+ค่า 0=ไม่พบสัญญาณเสี่ยง 1=เฝ้าระวัง 2=เสี่ยง 3=อันตราย 9=ไม่มีข้อมูล
+
+v1.2 — ลดภาระโควตา Open-Meteo:
+- STEP 0.4 → 0.7 (858 → 286 จุด ~8-10 นาที/รัน) ถ้าโควตาเหลือค่อยลดกลับเป็น 0.6
+- ยิงทีละ 20 จุด (เดิม 50) พัก 30 วินาที (เดิม 15) ระหว่างชุด
+- โดน 429/rate-limit → รอแบบถอยหลัง 60,120,180.. วินาที สูงสุด 7 ครั้ง พร้อม jitter
+- เขียนไฟล์แบบ atomic (เขียน .tmp แล้ว rename) กันข้อมูลพังค้างกลางทาง"""
+import json, time, random, datetime, urllib.request, urllib.error, sys, os
+STEP=0.7; LAT0,LAT1,LON0,LON1=5.5,20.5,97.3,105.7  # 286 จุด (เดิม 858) — ถ้าโควตาเหลือ ลดเป็น 0.6 (390 จุด)
 R24=(35,90); R48=(50,120)  # เกณฑ์ตั้งต้น (placeholder) ต้องตรงกับ index.html
 FC='https://api.open-meteo.com/v1/forecast?hourly=precipitation&daily=precipitation_sum&past_days=1&forecast_days=7&timeformat=unixtime&timezone=Asia%2FBangkok&'
 FL='https://flood-api.open-meteo.com/v1/flood?daily=river_discharge&past_days=90&forecast_days=7&'
 
 def get(url):
-    for i in range(5):
+    """ดึงข้อมูลพร้อม retry: ทั่วไปรอ 60,120,180.. วิ | โดน 429 รอนานขึ้น 2 เท่า + jitter กันชนกันเป็นระลอก"""
+    for i in range(7):
         try:
             rq=urllib.request.Request(url,headers={'User-Agent':'flood-check-hazard-bot'})
             with urllib.request.urlopen(rq,timeout=90) as r: return json.load(r)
+        except urllib.error.HTTPError as e:
+            wait=60*(i+1)*(2 if e.code==429 else 1)+random.uniform(0,10)
+            print('retry',i+1,'HTTP',e.code,'รอ',round(wait),'วิ',file=sys.stderr)
+            if e.code in (400,404): return None  # คำขอผิด แก้ไม่หายด้วย retry
+            time.sleep(wait)
         except Exception as e:
-            print('retry',i+1,e,file=sys.stderr); time.sleep(20*(i+1))  # รอแล้วลองใหม่ (รวมกรณีถูกจำกัดการเรียก)
+            print('retry',i+1,e,file=sys.stderr); time.sleep(60*(i+1)+random.uniform(0,10))
     return None
 
 def calc(R,F):
@@ -58,8 +70,10 @@ def main(out='data/hazard.json'):
     rows=int(round((LAT1-LAT0)/STEP))+1; cols=int(round((LON1-LON0)/STEP))+1
     pts=[(round(LAT0+i*STEP,3),round(LON0+j*STEP,3)) for i in range(rows) for j in range(cols)]
     lv=[9]*len(pts); why={}
-    for k in range(0,len(pts),50):  # ทีละ 50 จุด พักระหว่างชุด เพื่อไม่ชนโควตาต่อนาที
-        ch=pts[k:k+50]
+    nch=(len(pts)+19)//20
+    for n,k in enumerate(range(0,len(pts),20)):  # ทีละ 20 จุด (เดิม 50) พัก 30 วิ ระหว่างชุด
+        ch=pts[k:k+20]
+        print('ชุด',n+1,'/',nch,'จุด',k,'-',k+len(ch)-1,'/',len(pts),file=sys.stderr,flush=True)
         q='latitude='+','.join(str(a) for a,b in ch)+'&longitude='+','.join(str(b) for a,b in ch)
         R=get(FC+q); F=get(FL+q)
         if R is not None:
@@ -70,11 +84,13 @@ def main(out='data/hazard.json'):
                 if o:
                     s,w=assess(o); lv[k+i]=s
                     if s: why[str(k+i)]=w
-        time.sleep(15)
+        time.sleep(30)
     if lv.count(9)>len(lv)*0.5:
         print('ข้อมูลหายเกินครึ่ง ไม่เขียนทับไฟล์เดิม',file=sys.stderr); sys.exit(1)
     d={'updated':datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),'step':STEP,'lat0':LAT0,'lon0':LON0,'rows':rows,'cols':cols,'lv':''.join(map(str,lv)),'why':why}
-    with open(out,'w',encoding='utf-8') as fh: json.dump(d,fh,ensure_ascii=False,separators=(',',':'))
+    tmp=out+'.tmp'  # เขียนแบบ atomic ถ้ารันค้างตอนกลางคัน ไฟล์เดิมไม่พัง
+    with open(tmp,'w',encoding='utf-8') as fh: json.dump(d,fh,ensure_ascii=False,separators=(',',':'))
+    os.replace(tmp,out)
     print('ok',rows,'x',cols,'ข้อมูล',len(lv)-lv.count(9),'/',len(lv))
 
 if __name__=='__main__': main()
